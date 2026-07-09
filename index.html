@@ -36,7 +36,7 @@
                 <div class="form-grid">
                     <div class="input-group">
                         <label for="gameName">게임 이름 *</label>
-                        <input type="text" id="gameName" required placeholder="이름 검색 및 입력">
+                        <input type="text" id="gameName" required placeholder="이름 검색 및 입력" oninput="searchGameTitles(this.value); autoFillPrevTime(this.value)">
                         <div id="autocompleteList" class="autocomplete-list"></div>
                     </div>
                     <div class="input-group">
