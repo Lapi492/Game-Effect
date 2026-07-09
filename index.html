@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Effect</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>🎮 Game Effect</h1>
+
+    <div class="top-action-bar">
+        <span class="url-input-label">🔗 구글 시트 주소 연동:</span>
+        <input type="text" id="spreadsheetUrlInput" class="url-input-field" placeholder="구글 스프레드시트 주소(URL)를 복사해서 붙여넣으세요.">
+        <button type="button" class="sync-trigger-btn" onclick="forceFetchSpreadsheetData()">
+            ⚡ 시트 연결하기
+        </button>
+    </div>
+
+    <div class="top-action-bar" style="background-color: #23232f; border-color: #818cf8; margin-bottom: 25px;">
+        <span class="url-input-label" style="color: #818cf8;">🔍 아카이브 통합 검색:</span>
+        <input type="text" id="searchTitleInput" class="url-input-field" placeholder="게임 제목으로 필터링...">
+        <input type="text" id="searchDateInput" class="url-input-field" placeholder="날짜 또는 기간 범위 검색 (예: 2026-07 또는 2026-07-01 ~ 2026-07-05)">
+        <button type="button" class="sync-trigger-btn" style="background-color: #f59e0b;" onclick="clearSearchFilters()">🔄 검색 초기화</button>
+    </div>
+
+    <div class="flex-forms-wrapper">
+        <div class="form-container">
+            <div class="form-title">➕ 새 게임 기록 추가</div>
+            <form id="gameForm" autocomplete="off">
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label for="gameName">게임 이름 *</label>
+                        <input type="text" id="gameName" required placeholder="이름 검색 및 입력">
+                        <div id="autocompleteList" class="autocomplete-list"></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="gameTime">플레이 시간(시간) *</label>
+                        <input type="number" id="gameTime" step="0.1" required placeholder="예: 3">
+                    </div>
+                    <div class="input-group">
+                        <label for="gameStart">시작 날짜 (선택)</label>
+                        <input type="text" id="gameStart" placeholder="공백=현재날짜 / 수동=07-01">
+                    </div>
+                    <div class="input-group">
+                        <label for="gameEnd">종료 날짜 (선택)</label>
+                        <input type="text" id="gameEnd" placeholder="공백=현재날짜 / 수동=07-08">
+                    </div>
+                    <div class="input-group">
+                        <label for="gamePlatform">플랫폼</label>
+                        <select id="gamePlatform">
+                            <option value="Steam">Steam</option>
+                            <option value="PS5">PS5</option>
+                            <option value="Switch">Switch</option>
+                            <option value="Xbox">Xbox</option>
+                            <option value="Mobile">Mobile</option>
+                        </select>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="gameIsEnding">
+                        <label for="gameIsEnding">🏆 엔딩 달성</label>
+                    </div>
+                    <button type="submit" class="submit-btn">기록하기</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="calculator-container">
+            <div class="form-title" style="color: #10b981;">⏱️ 플레이타임 시간 계산기</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="input-group">
+                    <label>이전 누적 플레이 시간 (h)</label>
+                    <input type="number" id="calcPrevTime" step="0.1" placeholder="기존 누적 합 자동 반영">
+                </div>
+                <div class="input-group" style="margin-top: 5px;">
+                    <label>현재 총 플레이 시간 (h)</label>
+                    <input type="number" id="calcCurrTime" step="0.1" placeholder="예: 48.5">
+                </div>
+                <button type="button" class="calc-btn" onclick="calculateTimeDifference()">차이 계산 및 입력필드 반영</button>
+            </div>
+            <div class="calc-result-box" id="calcResultBox">
+                시간을 입력하면 증가한 플레이타임을 계산하여 자동으로 왼쪽 [플레이 시간] 칸에 채워줍니다.
+            </div>
+        </div>
+    </div>
+    
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('calendar-view')">📅 달력 보기</button>
+        <button class="tab-btn" onclick="switchTab('list-view')">🗂 전체 목록</button>
+        <button class="tab-btn" onclick="switchTab('report-view')">📊 연도별 리포트</button>
+    </div>
+    
+    <div id="calendar-view" class="content-view active">
+        <div id="calendar-container">
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+    <div id="list-view" class="content-view">
+        <div id="list-container"></div>
+    </div>
+
+    <div id="report-view" class="content-view">
+        <div class="report-header">
+            <div style="font-weight: bold; font-size: 1.2em; color:#818cf8;">📊 연도별 플레이 인사이트 통계</div>
+            <select id="reportYearSelect" class="report-select" onchange="calculateYearlyReport(this.value)">
+            </select>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stats-box">
+                <div class="stats-label">⏱️ 총 플레이 시간</div>
+                <div class="stats-number" id="statTotalTime">0 시간</div>
+            </div>
+            <div class="stats-box">
+                <div class="stats-label">🏆 엔딩 본 게임 수</div>
+                <div class="stats-number" id="statEndingCount" style="color: #ef4444;">0 개</div>
+            </div>
+            <div class="stats-box">
+                <div class="stats-label">👑 가장 오래 달린 게임 (최애)</div>
+                <div class="stats-number" id="statMostPlayedGame" style="color: #f59e0b;">-</div>
+                <div class="stats-subtext" id="statMostPlayedTime">0h 플레이</div>
+            </div>
+            <div class="stats-box">
+                <div class="stats-label">💬 최신 한줄평 요약</div>
+                <div class="stats-number" id="statLongestMemo" style="font-size:0.9em; font-weight:normal; color:#cbd5e1; line-height:1.4;">-</div>
+            </div>
+        </div>
+
+        <div style="max-width:1200px; margin: 0 auto 15px auto; padding-left:5px; font-weight:bold; color:#9ca3af;">🗂️ 해당 연도 통합 게임 카드 (플레이타임 합산 요약)</div>
+        <div id="year-list-container"></div>
+    </div>
+
+    <div id="gameModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal" onclick="closeGameModal()">&times;</span>
+            <div class="modal-title" id="modalGameTitle">게임 이름</div>
+            
+            <div class="modal-section-title">💬 게임 전체 한줄평 (엔딩 및 종합 인상 평가)</div>
+            <div class="modal-review-zone-wrapper" id="modalReviewWrapperZone">
+                <div class="modal-review-box" id="modalGameReviewBox" placeholder="이곳을 클릭해 이 게임의 최종 한줄평 또는 엔딩 인상 비평을 입력하세요.">등록된 한줄평이 없습니다.</div>
+            </div>
+
+            <div class="info-grid" id="modalInfoGrid">
+                <div class="info-label">⏱️ 플레이타임</div>
+                <div class="info-value" id="modalGameTimeZone"><span id="modalGameTime">0</span> 시간</div>
+                
+                <div class="info-label">📅 시작 날짜</div>
+                <div class="info-value" id="modalGameStartZone"><span id="modalGameStart">-</span></div>
+
+                <div class="info-label">📅 종료 날짜</div>
+                <div class="info-value" id="modalGameEndZone"><span id="modalGameEnd">-</span></div>
+                
+                <div class="info-label">🏆 엔딩 여부</div>
+                <div class="info-value" id="modalGameTrophyZone"><span id="modalGameTrophy">-</span></div>
+                
+                <div class="info-label">🕹️ 플랫폼</div>
+                <div class="info-value" id="modalGamePlatformZone"><span id="modalGamePlatform">-</span></div>
+            </div>
+            
+            <div class="modal-memo-write-zone" id="quickMemoZone">
+                <div class="memo-date-input-wrapper">
+                    <span class="memo-date-label">📅 기록 날짜:</span>
+                    <input type="text" id="modalMemoDateInput" class="memo-date-field" placeholder="비워두면 선택한 기록의 기간으로 자동 연동">
+                </div>
+                <textarea id="modalInstantMemoInput" class="modal-textarea" placeholder="메모/세션 일지 내용을 작성해 보세요!"></textarea>
+                <div class="memo-btn-row">
+                    <button class="memo-save-btn btn-memo-submit" onclick="submitInstantMemo()">📝 메모 추가하기</button>
+                </div>
+            </div>
+
+            <div class="info-label" style="margin-top: 10px; color:#cbd5e1;" id="modalMemoTitleLabel">📝 날짜순 누적 메모 타임라인</div>
+            <div id="modalGameMemoZone" style="margin-top: 5px;">
+                <div class="timeline-container" id="modalGameMemoTimeline"></div>
+            </div>
+
+            <div class="btn-group">
+                <button class="action-btn edit-btn" id="btnEdit" onclick="enableEditMode()">수정</button>
+                <button class="action-btn save-btn" id="btnSave" onclick="saveEditedData()">저장</button>
+                <button class="action-btn delete-btn" id="btnDelete" onclick="deleteCurrentGame()">삭제</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
