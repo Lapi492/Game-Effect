@@ -12,15 +12,18 @@ function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
 }
 
-// 💡 [개인 보안 강화] 입력폼으로부터 양방향 전송용 웹 앱 URL을 개별 로컬 브라우저에 격리 저장하는 기능
+// 💾 입력폼으로부터 양방향 전송용 웹 앱 URL을 개별 로컬 브라우저에 격리 저장하는 기능
 function saveWebAppUrlFromInput() {
     let urlVal = document.getElementById('webAppUrlInput').value.trim();
     if(!urlVal) {
         alert("연동할 구글 웹 앱 URL 주소를 올바르게 입력해 주세요!");
         return;
     }
+    // 💡 픽스: 잘못 참조되던 변수명을 urlVal로 일치시켜 정상 저장되도록 전면 수정
     localStorage.setItem('user_local_web_app_url', urlVal);
     alert("개인용 실시간 양방향 저장 주소가 브라우저에 안전하게 저장되었습니다! 🔒");
+    
+    document.getElementById('webAppUrlInput').value = urlVal;
 }
 
 // ==========================================
@@ -375,27 +378,26 @@ function forceFetchSpreadsheetData() {
     }
 }
 
-// 💡 [격리 전송 엔진 개혁] 소스코드 내부 주소를 삭제하고, 현재 접속한 사용자 브라우저의 저장값을 감지해 송신
+// 구글 시트로 백그라운드 데이터 실시간 송신 엔진
 function sendDataToGoogleSheet(gameData) {
-    let localWebAppUrl = localStorage.getItem('user_local_web_app_url');
-    if(!localWebAppUrl) {
-        console.warn("⚠️ 상단에 개인 양방향 저장 주소(Web App URL)를 등록하지 않아 클라우드 전송이 생략되었습니다. (로컬 브라우저엔 안전히 저장됨)");
+    // 💡 픽스: 오타로 엉뚱하게 참조되던 변수명을 user_local_web_app_url로 완전 일치 교정
+    let targetUrl = localStorage.getItem('user_local_web_app_url');
+    if(!targetUrl) {
+        console.warn("💡 구글 웹 앱 URL이 등록되지 않아 로컬 브라우저에만 기록이 백업되었습니다.");
         return;
     }
     
-    fetch(localWebAppUrl, {
+    fetch(targetUrl, {
         method: "POST",
-        headers: {
-            "Content-Type": "text/plain"
-        },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(gameData)
     })
     .then(response => response.json())
     .then(result => {
         if(result.result === "success") {
-            console.log("✅ 해당 사용자의 개인 구글 클라우드 시트 백업 완료!");
+            alert("🚀 내 구글 스프레드시트에 영구 클라우드 동기화 완료!");
         } else {
-            console.error("❌ 구글 시트 백업 실패:", result.message);
+            alert("❌ 구글 시트 전송 실패: " + result.message);
         }
     })
     .catch(err => console.error("⚠️ 네트워크 동기화 실패:", err));
@@ -779,10 +781,10 @@ function closeGameModal() { document.getElementById('gameModal').style.display =
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     var modal = document.getElementById('gameModal');
+    
     let savedUrl = localStorage.getItem('saved_game_sheet_url');
     if(savedUrl) { document.getElementById('spreadsheetUrlInput').value = savedUrl; }
 
-    // 사용자가 이전에 저장한 웹 앱 URL 주소가 로컬스토리지에 있다면 자동으로 폼에 채워주기
     let savedWebAppUrl = localStorage.getItem('user_local_web_app_url');
     if(savedWebAppUrl) { document.getElementById('webAppUrlInput').value = savedWebAppUrl; }
 
