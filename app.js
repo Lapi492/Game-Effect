@@ -7,13 +7,24 @@ let currentSelectedEventId = null;
 let currentSelectedGameTitle = ""; 
 let calendar = null;
 
-// 💾 [신규 함수] 로컬 저장소에 현재 변경 상태를 영구 캐싱하는 엔진
+// 로컬 저장소에 현재 변경 상태를 영구 캐싱하는 엔진
 function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
 }
 
+// 💡 [개인 보안 강화] 입력폼으로부터 양방향 전송용 웹 앱 URL을 개별 로컬 브라우저에 격리 저장하는 기능
+function saveWebAppUrlFromInput() {
+    let urlVal = document.getElementById('webAppUrlInput').value.trim();
+    if(!urlVal) {
+        alert("연동할 구글 웹 앱 URL 주소를 올바르게 입력해 주세요!");
+        return;
+    }
+    localStorage.setItem('user_local_web_app_url', urlVal);
+    alert("개인용 실시간 양방향 저장 주소가 브라우저에 안전하게 저장되었습니다! 🔒");
+}
+
 // ==========================================
-// 🎨 2. 비주얼 테마 및 데이터 가공 헬퍼 함수
+// 🎨 2. 플랫폼 색상 자동 동기화 및 가공 헬퍼 함수
 // ==========================================
 function getSmartGameColor(title) {
     let hash = 0;
@@ -22,7 +33,19 @@ function getSmartGameColor(title) {
 }
 
 function determineEventColor(gameObj) {
-    return getSmartGameColor(gameObj.title);
+    let p = gameObj.platform ? gameObj.platform.trim().toLowerCase() : '';
+    if (p === 'steam') return '#1044a0';         
+    if (p === 'xbox gamepass') return '#107c10'; 
+    if (p === 'switch') return '#ffb0b0';        
+    if (p === 'switch2') return '#e60012';       
+    if (p === 'ps4') return '#b0b0ff';           
+    if (p === 'ps5') return '#4a148c';           
+    if (p === 'stove') return '#ffa259';         
+    if (p === 'epic') return '#00a3ff';          
+    if (p === 'mobile') return '#2d2d2d';        
+    if (p === 'dlc') return '#888888';           
+    if (p === '기타') return '#b0bec5';          
+    return getSmartGameColor(gameObj.title);     
 }
 
 function extractSpreadsheetId(urlText) {
@@ -190,7 +213,7 @@ function clearSearchFilters() {
 }
 
 // ==========================================
-// 🔗 6. 구글 스프레드시트 하이브리드 연동 엔진
+// 🔗 6. 구글 스프레드시트 수신 엔진
 // ==========================================
 function parseCSVTextToRows(text) {
     let lines = [];
@@ -215,7 +238,6 @@ function parseCSVTextToRows(text) {
     return lines;
 }
 
-// 시트 로드 성공 시 -> 로컬에 즉시 영구 백업 지수 반영
 function parseAndRenderCSV(csvText) {
     let allRows = parseCSVTextToRows(csvText);
     if (allRows.length < 1) return;
@@ -231,7 +253,7 @@ function parseAndRenderCSV(csvText) {
     let reviewIdx = cols.indexOf('한줄평');
 
     if (nameIdx === -1 || startIdx === -1) {
-        alert("⚠️ 시트의 첫 행 제목에 '이름'과 '시작일' 열이 정확히 선언되어 있어야 합니다.");
+        alert("⚠️ 시트 헤더 배치 실패. 첫 행 제목을 재점검하세요.");
         return;
     }
 
@@ -255,8 +277,8 @@ function parseAndRenderCSV(csvText) {
         localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
     }
     refreshUI();
-    saveToLocalStorage(); // 💾 캐시 저장
-    alert("구글 스프레드시트 웹 게시 데이터 실시간 동기화 완료! 🎮");
+    saveToLocalStorage();
+    alert("구글 스프레드시트 데이터 연동 성공! 🎮");
 }
 
 window.handleGoogleSheetResponse = function(rawJson) {
@@ -264,7 +286,7 @@ window.handleGoogleSheetResponse = function(rawJson) {
     if (oldScript) oldScript.remove();
 
     if (!rawJson || !rawJson.table) {
-        alert("⚠️ 데이터를 정상적으로 해독하지 못했습니다. 시트 규격을 확인하세요.");
+        alert("⚠️ 데이터를 정상적으로 해독하지 못했습니다.");
         return;
     }
 
@@ -291,7 +313,7 @@ window.handleGoogleSheetResponse = function(rawJson) {
     let reviewIdx = cols.indexOf('한줄평');
 
     if (nameIdx === -1 || startIdx === -1) {
-        alert("⚠️ 시트 매칭 에러: '이름' and '시작일' 열 헤더를 찾지 못했습니다.");
+        alert("⚠️ 시트 매칭 에러: '이름'과 '시작일' 열 헤더를 찾지 못했습니다.");
         return;
     }
 
@@ -318,8 +340,8 @@ window.handleGoogleSheetResponse = function(rawJson) {
     }
 
     refreshUI();
-    saveToLocalStorage(); // 💾 캐시 저장
-    alert("구글 스프레드시트 데이터 100% 실시간 연동 성공! 🎮");
+    saveToLocalStorage();
+    alert("구글 스프레드시트 수신 동기화 완료! 🎮");
 };
 
 function forceFetchSpreadsheetData() {
@@ -340,7 +362,7 @@ function forceFetchSpreadsheetData() {
         fetch(csvCleanUrl)
             .then(response => { if (!response.ok) throw new Error(); return response.text(); })
             .then(csvText => { parseAndRenderCSV(csvText); })
-            .catch(() => { alert("⚠️ 웹 게시 데이터를 읽지 못했습니다. 주소를 다시 체크하세요."); });
+            .catch(() => { alert("⚠️ 웹 게시 데이터를 읽지 못했습니다."); });
     } else {
         let oldScript = document.getElementById('googlesheet-jsonp-script');
         if (oldScript) oldScript.remove();
@@ -349,11 +371,34 @@ function forceFetchSpreadsheetData() {
         let script = document.createElement('script');
         script.id = 'googlesheet-jsonp-script';
         script.src = generatedTargetUrl;
-        script.onerror = function() {
-            alert("공유 상태를 체크하세요.");
-        };
         document.body.appendChild(script);
     }
+}
+
+// 💡 [격리 전송 엔진 개혁] 소스코드 내부 주소를 삭제하고, 현재 접속한 사용자 브라우저의 저장값을 감지해 송신
+function sendDataToGoogleSheet(gameData) {
+    let localWebAppUrl = localStorage.getItem('user_local_web_app_url');
+    if(!localWebAppUrl) {
+        console.warn("⚠️ 상단에 개인 양방향 저장 주소(Web App URL)를 등록하지 않아 클라우드 전송이 생략되었습니다. (로컬 브라우저엔 안전히 저장됨)");
+        return;
+    }
+    
+    fetch(localWebAppUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "text/plain"
+        },
+        body: JSON.stringify(gameData)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if(result.result === "success") {
+            console.log("✅ 해당 사용자의 개인 구글 클라우드 시트 백업 완료!");
+        } else {
+            console.error("❌ 구글 시트 백업 실패:", result.message);
+        }
+    })
+    .catch(err => console.error("⚠️ 네트워크 동기화 실패:", err));
 }
 
 // ==========================================
@@ -402,7 +447,10 @@ function handleGameSubmit(event) {
     localEvents.push(newGame);
 
     refreshUI();
-    saveToLocalStorage(); // 💾 로컬 새 등록 기록 영구 저장
+    saveToLocalStorage();
+    
+    sendDataToGoogleSheet(newGame.extendedProps);
+    
     document.getElementById('gameForm').reset();
     document.getElementById('autocompleteList').style.display = 'none';
 }
@@ -449,16 +497,21 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
 
     let titleTimeMap = {};
     let titleEndingMap = {};
+    let titlePlatformMap = {}; 
 
     sourceList.forEach(evt => {
         let game = evt.extendedProps;
         titleTimeMap[game.title] = (titleTimeMap[game.title] || 0) + game.time;
         if (game.isEnding && (game.isEnding === 'o' || game.isEnding.includes('엔딩'))) { titleEndingMap[game.title] = true; }
+        titlePlatformMap[game.title] = game.platform;
     });
+
+    let timeLabelText = targetYear ? "해당 연도 플레이 시간" : "총 플레이타임";
 
     for(let title in titleTimeMap) {
         let aggregatedTime = titleTimeMap[title];
-        let cardColor = getSmartGameColor(title);
+        let platform = titlePlatformMap[title];
+        let cardColor = determineEventColor({ title: title, platform: platform });
         let hasEnded = titleEndingMap[title];
 
         let card = document.createElement('div');
@@ -469,7 +522,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
         card.innerHTML = `
             ${badgeHTML}
             <div class="card-title">${title}</div>
-            <div class="card-info" style="font-size: 1.1em; margin-top: 10px;">⏱ 총 플레이타임: <span style="color:#818cf8; font-size:1.2em;">${aggregatedTime.toFixed(1)}</span> 시간</div>
+            <div class="card-info" style="font-size: 1.1em; margin-top: 10px;">⏱ ${timeLabelText}: <span style="color:#818cf8; font-size:1.2em;">${aggregatedTime.toFixed(1)}</span> 시간</div>
         `;
         card.addEventListener('click', () => { openDetailModalByTitle(title); });
         container.appendChild(card);
@@ -505,7 +558,7 @@ function calculateYearlyReport(targetYear) {
     document.getElementById('statTotalTime').innerText = totalTime.toFixed(1) + ' 시간';
     document.getElementById('statEndingCount').innerText = uniqueEndedGamesInYear.size + ' 개';
     document.getElementById('statMostPlayedGame').innerText = mostPlayedGame;
-    document.getElementById('statMostPlayedTime').innerText = mostPlayedTime.toFixed(1) + 'h 누적 플레이';
+    document.getElementById('statMostPlayedTime').innerText = mostPlayedTime.toFixed(1) + 'h 올해 순수 플레이';
     document.getElementById('statLongestMemo').innerText = latestReviewText;
 
     buildAggregatedCards('year-list-container', targetYear);
@@ -572,7 +625,7 @@ function openDetailModalByTitle(title) {
         localEvents.forEach(evt => {
             if(evt.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()) { evt.extendedProps.review = updatedReviewText; }
         });
-        saveToLocalStorage(); // 한줄평 수정 즉시 저장
+        saveToLocalStorage();
     };
 
     rebuildTimelineUI(sameGames);
@@ -647,7 +700,7 @@ function submitInstantMemo() {
         alert("한줄평 메모가 결합되었습니다!");
     }
     refreshUI();
-    saveToLocalStorage(); // 💾 메모 추가 실시간 캐시 백업
+    saveToLocalStorage();
     rebuildTimelineUI(localEvents.filter(e => e.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()));
 }
 
@@ -664,11 +717,20 @@ function enableEditMode() {
             <option value="x" ${gameObj.isEnding === 'x'?'selected':''}>진행 중 (x)</option>
             <option value="o" ${gameObj.isEnding === 'o'?'selected':''}>엔딩 완료 (o)</option>
         </select>`;
+        
     document.getElementById('modalGamePlatformZone').innerHTML = `
         <select id="editPlatform" class="edit-input">
-            <option value="Steam" ${gameObj.platform === 'Steam'?'selected':''}>Steam</option>
-            <option value="PS5" ${gameObj.platform === 'PS5'?'selected':''}>PS5</option>
+            <option value="steam" ${gameObj.platform === 'steam'?'selected':''}>steam</option>
+            <option value="xbox gamepass" ${gameObj.platform === 'xbox gamepass'?'selected':''}>xbox gamepass</option>
             <option value="Switch" ${gameObj.platform === 'Switch'?'selected':''}>Switch</option>
+            <option value="Switch2" ${gameObj.platform === 'Switch2'?'selected':''}>Switch2</option>
+            <option value="ps4" ${gameObj.platform === 'ps4'?'selected':''}>ps4</option>
+            <option value="ps5" ${gameObj.platform === 'ps5'?'selected':''}>ps5</option>
+            <option value="stove" ${gameObj.platform === 'stove'?'selected':''}>stove</option>
+            <option value="epic" ${gameObj.platform === 'epic'?'selected':''}>epic</option>
+            <option value="mobile" ${gameObj.platform === 'mobile'?'selected':''}>mobile</option>
+            <option value="DLC" ${gameObj.platform === 'DLC'?'selected':''}>DLC</option>
+            <option value="기타" ${gameObj.platform === '기타'?'selected':''}>기타</option>
         </select>`;
 
     let rawTextForEdit = gameObj.memo || '';
@@ -697,7 +759,7 @@ function saveEditedData() {
     });
     target.extendedProps.memo = JSON.stringify(recompiledArr);
     
-    saveToLocalStorage(); // 💾 데이터 수동 수정 내역 동기화 저장
+    saveToLocalStorage();
     alert("저장되었습니다."); 
     closeGameModal();
 }
@@ -705,7 +767,7 @@ function saveEditedData() {
 function deleteCurrentGame() { 
     if(confirm("삭제하시겠습니까?")) { 
         localEvents = localEvents.filter(e => e.id !== currentSelectedEventId); 
-        saveToLocalStorage(); // 💾 기록 제거 영구 반영
+        saveToLocalStorage();
         closeGameModal(); 
     } 
 }
@@ -719,6 +781,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var modal = document.getElementById('gameModal');
     let savedUrl = localStorage.getItem('saved_game_sheet_url');
     if(savedUrl) { document.getElementById('spreadsheetUrlInput').value = savedUrl; }
+
+    // 사용자가 이전에 저장한 웹 앱 URL 주소가 로컬스토리지에 있다면 자동으로 폼에 채워주기
+    let savedWebAppUrl = localStorage.getItem('user_local_web_app_url');
+    if(savedWebAppUrl) { document.getElementById('webAppUrlInput').value = savedWebAppUrl; }
 
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth', locale: 'ko',
@@ -735,7 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     calendar.render();
 
-    // 💡 [지능형 생명주기 픽스] 새로고침 시 이전에 쓰던 편집본 데이터를 최우선 복원
     let cachedEvents = localStorage.getItem('cached_game_events');
     if (cachedEvents) {
         try {
@@ -748,7 +813,6 @@ document.addEventListener('DOMContentLoaded', function() {
         forceFetchSpreadsheetData();
     }
 
-    // 통합 기동 리스너 매핑 안정화
     document.getElementById('searchTitleInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('searchDateInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('gameForm').addEventListener('submit', handleGameSubmit);
