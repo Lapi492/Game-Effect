@@ -19,7 +19,6 @@ function saveWebAppUrlFromInput() {
         alert("연동할 구글 웹 앱 URL 주소를 올바르게 입력해 주세요!");
         return;
     }
-    // 💡 픽스: 잘못 참조되던 변수명을 urlVal로 일치시켜 정상 저장되도록 전면 수정
     localStorage.setItem('user_local_web_app_url', urlVal);
     alert("개인용 실시간 양방향 저장 주소가 브라우저에 안전하게 저장되었습니다! 🔒");
     
@@ -349,7 +348,7 @@ window.handleGoogleSheetResponse = function(rawJson) {
 
 function forceFetchSpreadsheetData() {
     let rawUrlInput = document.getElementById('spreadsheetUrlInput').value.trim();
-    let sheetId = extractSpreadsheetId(rawUrlInput);
+    let sheetId = extractSpreadsheetId(urlText);
 
     if(!sheetId) {
         alert("구글 스프레드시트 주소를 복사해 주세요!");
@@ -380,7 +379,6 @@ function forceFetchSpreadsheetData() {
 
 // 구글 시트로 백그라운드 데이터 실시간 송신 엔진
 function sendDataToGoogleSheet(gameData) {
-    // 💡 픽스: 오타로 엉뚱하게 참조되던 변수명을 user_local_web_app_url로 완전 일치 교정
     let targetUrl = localStorage.getItem('user_local_web_app_url');
     if(!targetUrl) {
         console.warn("💡 구글 웹 앱 URL이 등록되지 않아 로컬 브라우저에만 기록이 백업되었습니다.");
@@ -593,28 +591,35 @@ function refreshUI() {
     if(yearSelect.value) calculateYearlyReport(yearSelect.value);
 }
 
-function openDetailModalByTitle(title) {
-    currentSelectedGameTitle = title;
-    let sameGames = localEvents.filter(e => e.title.toLowerCase() === title.toLowerCase());
-    if(sameGames.length === 0) return;
+// ==========================================
+// 💬 9. 🚀 [대개혁 완료] 기록별 고유 인덱스 세션 매칭 모달 시스템
+// ==========================================
 
-    sameGames.sort((a,b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
-    let latestEvent = sameGames[sameGames.length - 1];
-    currentSelectedEventId = latestEvent.id; 
-
-    let latestGame = latestEvent.extendedProps;
-    let totalAggTime = sameGames.reduce((acc, curr) => acc + curr.extendedProps.time, 0);
-
-    document.getElementById('modalInfoGrid').style.display = 'grid';
-    document.getElementById('modalGameTitle').innerHTML = title;
-    document.getElementById('modalGameTimeZone').innerHTML = `<span id="modalGameTime">${totalAggTime.toFixed(1)}</span> 시간 (기록 누적합)`;
-    document.getElementById('modalGameStartZone').innerHTML = `<span id="modalGameStart">${sameGames[0].extendedProps.startDate}</span>`;
-    document.getElementById('modalGameEndZone').innerHTML = `<span id="modalGameEnd">${latestGame.endDate ? latestGame.endDate : '진행 중'}</span>`;
+// 💡 [신규 정밀 격리엔진] 달력에서 클릭한 그 세션 블록의 고유 ID만을 역추적하여 오차 없이 출력
+function openDetailModalById(id) {
+    let targetEvent = localEvents.find(e => e.id === id);
+    if (!targetEvent) return;
     
-    let hasEnding = sameGames.some(e => e.extendedProps.isEnding && e.extendedProps.isEnding !== 'x');
-    document.getElementById('modalGameTrophyZone').innerHTML = `<span id="modalGameTrophy">${hasEnding ? '🏆 엔딩 완료' : '진행 중'}</span>`;
-    document.getElementById('modalGamePlatformZone').innerHTML = `<span id="modalGamePlatform">${latestGame.platform}</span>`;
-
+    let gameObj = targetEvent.extendedProps;
+    currentSelectedEventId = id;
+    currentSelectedGameTitle = gameObj.title;
+    
+    let sameGames = localEvents.filter(e => e.title.toLowerCase() === gameObj.title.toLowerCase());
+    let totalAggTime = sameGames.reduce((acc, curr) => acc + curr.extendedProps.time, 0);
+    
+    document.getElementById('modalInfoGrid').style.display = 'grid';
+    document.getElementById('modalGameTitle').innerHTML = gameObj.title;
+    
+    // 타임라인 보정: 해당 단일 블록의 순수 플레이 시간과 전체 총합 누적 시간을 함께 투명하게 표기
+    document.getElementById('modalGameTimeZone').innerHTML = `<span id="modalGameTime">${gameObj.time.toFixed(1)}</span> 시간 (전체 누적합: ${totalAggTime.toFixed(1)}h)`;
+    
+    // 💡 버그 픽스 포인트: 클릭한 그 날짜 세션 블록의 순수 시작일과 종료일만 독립 추출하여 세팅!
+    document.getElementById('modalGameStartZone').innerHTML = `<span id="modalGameStart">${gameObj.startDate}</span>`;
+    document.getElementById('modalGameEndZone').innerHTML = `<span id="modalGameEnd">${gameObj.endDate ? gameObj.endDate : '진행 중'}</span>`;
+    
+    document.getElementById('modalGameTrophyZone').innerHTML = `<span id="modalGameTrophy">${gameObj.isEnding && gameObj.isEnding !== 'x' ? '🏆 엔딩 완료' : '진행 중'}</span>`;
+    document.getElementById('modalGamePlatformZone').innerHTML = `<span id="modalGamePlatform">${gameObj.platform}</span>`;
+    
     let commonReview = "";
     let foundReviewNode = sameGames.find(e => e.extendedProps.review && e.extendedProps.review.trim() !== "");
     if(foundReviewNode) commonReview = foundReviewNode.extendedProps.review;
@@ -637,6 +642,15 @@ function openDetailModalByTitle(title) {
     document.getElementById('btnDelete').style.display = 'inline-block';
     document.getElementById('btnSave').style.display = 'none';
     document.getElementById('gameModal').style.display = "flex";
+}
+
+// 목록 및 카드 보기에서 접근 시 자동으로 가장 최신 세션을 식별해 ID 매칭 브릿지로 연결
+function openDetailModalByTitle(title) {
+    let sameGames = localEvents.filter(e => e.title.toLowerCase() === title.toLowerCase());
+    if(sameGames.length === 0) return;
+    sameGames.sort((a,b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
+    let latestEvent = sameGames[sameGames.length - 1];
+    openDetailModalById(latestEvent.id);
 }
 
 function rebuildTimelineUI(gamesArray) {
@@ -799,7 +813,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isEnd) { let trophySpan = document.createElement('span'); trophySpan.className = 'game-bar-trophy'; trophySpan.innerText = '🏆'; customEl.appendChild(trophySpan); }
             return { domNodes: [customEl] };
         },
-        eventClick: function(info) { openDetailModalByTitle(info.event.title); }
+        // 💡 버그 픽스 포인트: 달력에서 클릭 시, 이제 Title이 아닌 블록의 고유 Event ID를 직접 쏘아 정밀 편집 유도!
+        eventClick: function(info) { openDetailModalById(info.event.id); }
     });
     calendar.render();
 
