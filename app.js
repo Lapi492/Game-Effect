@@ -79,6 +79,7 @@ function cleanGoogleDate(val) {
     return str.trim();
 }
 
+// 날짜 연산 헬퍼 함수
 function addDays(dateStr, days) {
     let d = new Date(dateStr);
     d.setDate(d.getDate() + days);
@@ -215,7 +216,7 @@ function clearSearchFilters() {
 }
 
 // ==========================================
-// 🔗 6. 구글 스프레드시트 수신 엔진
+// 🔗 6. 구글 스프레드시트 수신 및 동형 데이터 세션 병합 처리소
 // ==========================================
 function parseCSVTextToRows(text) {
     let lines = [];
@@ -254,10 +255,7 @@ function parseAndRenderCSV(csvText) {
     let memoIdx = cols.indexOf('메모');
     let reviewIdx = cols.indexOf('한줄평');
 
-    if (nameIdx === -1 || startIdx === -1) {
-        alert("⚠️ 시트 헤더 배치 실패. 첫 행 제목을 재점검하세요.");
-        return;
-    }
+    if (nameIdx === -1 || startIdx === -1) return;
 
     for (let i = 1; i < allRows.length; i++) {
         let row = allRows[i].map(r => r.trim().replace(/^"|"$/g, ''));
@@ -268,7 +266,7 @@ function parseAndRenderCSV(csvText) {
         let endDate = row[endIdx] || '';
         let platform = row[platformIdx] || '-';
         let time = parseFloat(row[timeIdx] || 0);
-        let endingStatus = row[endingIdx] || 'x';
+        let endingStatus = row[endingStatusIdx] || 'x';
         let memo = row[memoIdx] || '';
         let review = reviewIdx !== -1 ? (row[reviewIdx] || '') : '';
 
@@ -276,21 +274,35 @@ function parseAndRenderCSV(csvText) {
         if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
 
         let isEndMark = (endingStatus === 'o' || endingStatus.includes('엔딩') || endingStatus.includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        
+        // 🚀 [로딩 엔진 혁신] 시간만 적어서 추가됐던 연속 세션 행들을 로딩할 때 하나로 매끄럽게 묶어줌
+        let dayBeforeStart = addDays(startDate, -1);
+        let continuousEvent = localEvents.find(e => 
+            e.title.toLowerCase() === name.toLowerCase() && e.extendedProps.rawEndDate === dayBeforeStart
+        );
+
+        if (continuousEvent) {
+            continuousEvent.extendedProps.time += time;
+            let targetEnd = endDate || startDate;
+            continuousEvent.extendedProps.rawEndDate = targetEnd;
+            continuousEvent.extendedProps.endDate = targetEnd === continuousEvent.extendedProps.startDate ? '' : targetEnd;
+            let calcEnd = new Date(targetEnd);
+            calcEnd.setDate(calcEnd.getDate() + 1);
+            continuousEvent.end = calcEnd.toISOString().split('T')[0];
+            if (memo) continuousEvent.extendedProps.memo += "\n" + memo;
+        } else {
+            localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        }
     }
     refreshUI();
     saveToLocalStorage();
-    alert("구글 스프레드시트 데이터 연동 성공! 🎮");
 }
 
 window.handleGoogleSheetResponse = function(rawJson) {
     let oldScript = document.getElementById('googlesheet-jsonp-script');
     if (oldScript) oldScript.remove();
 
-    if (!rawJson || !rawJson.table) {
-        alert("⚠️ 데이터를 정상적으로 해독하지 못했습니다.");
-        return;
-    }
+    if (!rawJson || !rawJson.table) return;
 
     localEvents = [];
     uniqueTitles = [];
@@ -314,10 +326,7 @@ window.handleGoogleSheetResponse = function(rawJson) {
     let memoIdx = cols.indexOf('메모');
     let reviewIdx = cols.indexOf('한줄평');
 
-    if (nameIdx === -1 || startIdx === -1) {
-        alert("⚠️ 시트 매칭 에러: '이름'과 '시작일' 열 헤더를 찾지 못했습니다.");
-        return;
-    }
+    if (nameIdx === -1 || startIdx === -1) return;
 
     let startIndex = isHeaderInRows ? 1 : 0;
 
@@ -338,17 +347,34 @@ window.handleGoogleSheetResponse = function(rawJson) {
         if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
 
         let isEndMark = (endingStatus === 'o' || endingStatus.toString().includes('엔딩') || endingStatus.toString().includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        
+        // 🚀 [클라우드 로딩 보정] 웹 게시 형태로 받아올 때도 연속성 기록 분리 버그 철저방어
+        let dayBeforeStart = addDays(startDate, -1);
+        let continuousEvent = localEvents.find(e => 
+            e.title.toLowerCase() === name.toLowerCase() && e.extendedProps.rawEndDate === dayBeforeStart
+        );
+
+        if (continuousEvent) {
+            continuousEvent.extendedProps.time += time;
+            let targetEnd = endDate || startDate;
+            continuousEvent.extendedProps.rawEndDate = targetEnd;
+            continuousEvent.extendedProps.endDate = targetEnd === continuousEvent.extendedProps.startDate ? '' : targetEnd;
+            let calcEnd = new Date(targetEnd);
+            calcEnd.setDate(calcEnd.getDate() + 1);
+            continuousEvent.end = calcEnd.toISOString().split('T')[0];
+            if (memo) continuousEvent.extendedProps.memo += "\n" + memo;
+        } else {
+            localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        }
     }
 
     refreshUI();
     saveToLocalStorage();
-    alert("구글 스프레드시트 수신 동기화 완료! 🎮");
 };
 
 function forceFetchSpreadsheetData() {
     let rawUrlInput = document.getElementById('spreadsheetUrlInput').value.trim();
-    let sheetId = extractSpreadsheetId(urlText);
+    let sheetId = extractSpreadsheetId(rawUrlInput);
 
     if(!sheetId) {
         alert("구글 스프레드시트 주소를 복사해 주세요!");
@@ -364,7 +390,7 @@ function forceFetchSpreadsheetData() {
         fetch(csvCleanUrl)
             .then(response => { if (!response.ok) throw new Error(); return response.text(); })
             .then(csvText => { parseAndRenderCSV(csvText); })
-            .catch(() => { alert("⚠️ 웹 게시 데이터를 읽지 못했습니다."); });
+            .catch(() => {});
     } else {
         let oldScript = document.getElementById('googlesheet-jsonp-script');
         if (oldScript) oldScript.remove();
@@ -377,13 +403,10 @@ function forceFetchSpreadsheetData() {
     }
 }
 
-// 구글 시트로 백그라운드 데이터 실시간 송신 엔진
+// 💡 [알림창 전면 제거] 무소음 백그라운드 클라우드 전송 가동
 function sendDataToGoogleSheet(gameData) {
     let targetUrl = localStorage.getItem('user_local_web_app_url');
-    if(!targetUrl) {
-        console.warn("💡 구글 웹 앱 URL이 등록되지 않아 로컬 브라우저에만 기록이 백업되었습니다.");
-        return;
-    }
+    if(!targetUrl) return;
     
     fetch(targetUrl, {
         method: "POST",
@@ -393,12 +416,10 @@ function sendDataToGoogleSheet(gameData) {
     .then(response => response.json())
     .then(result => {
         if(result.result === "success") {
-            alert("🚀 내 구글 스프레드시트에 영구 클라우드 동기화 완료!");
-        } else {
-            alert("❌ 구글 시트 전송 실패: " + result.message);
+            console.log("✅ 클라우드 동기화 성공");
         }
     })
-    .catch(err => console.error("⚠️ 네트워크 동기화 실패:", err));
+    .catch(err => console.error("⚠️ 네트워크 동기화 오류:", err));
 }
 
 // ==========================================
@@ -443,13 +464,33 @@ function handleGameSubmit(event) {
         calculatedEnd = endDate ? SmartDateFormatter(endDate) : startDate;
     }
 
-    let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding);
-    localEvents.push(newGame);
+    // 🚀 [핵심 픽스]: 시간만 적었을 때 이전 바의 꼬리에 붙여서 늘려주는 엔진 가동
+    let dayBeforeStart = addDays(startDate, -1);
+    let continuousEvent = localEvents.find(e => 
+        e.title.toLowerCase() === name.toLowerCase() && e.extendedProps.rawEndDate === dayBeforeStart
+    );
+
+    if (continuousEvent) {
+        continuousEvent.extendedProps.time += inputTime;
+        continuousEvent.extendedProps.rawEndDate = calculatedEnd;
+        continuousEvent.extendedProps.endDate = calculatedEnd === continuousEvent.extendedProps.startDate ? '' : calculatedEnd;
+        
+        let calcEnd = new Date(calculatedEnd);
+        calcEnd.setDate(calcEnd.getDate() + 1);
+        continuousEvent.end = calcEnd.toISOString().split('T')[0];
+    } else {
+        let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding);
+        localEvents.push(newGame);
+    }
 
     refreshUI();
     saveToLocalStorage();
     
-    sendDataToGoogleSheet(newGame.extendedProps);
+    // 시트엔 히스토리 보존을 위해 단일 로그 객체 전송
+    sendDataToGoogleSheet({
+        title: name, startDate: startDate, endDate: calculatedEnd === startDate ? '' : calculatedEnd,
+        platform: platform, time: inputTime, isEnding: endingStatusValue, memo: '', review: ''
+    });
     
     document.getElementById('gameForm').reset();
     document.getElementById('autocompleteList').style.display = 'none';
@@ -591,11 +632,6 @@ function refreshUI() {
     if(yearSelect.value) calculateYearlyReport(yearSelect.value);
 }
 
-// ==========================================
-// 💬 9. 🚀 [대개혁 완료] 기록별 고유 인덱스 세션 매칭 모달 시스템
-// ==========================================
-
-// 💡 [신규 정밀 격리엔진] 달력에서 클릭한 그 세션 블록의 고유 ID만을 역추적하여 오차 없이 출력
 function openDetailModalById(id) {
     let targetEvent = localEvents.find(e => e.id === id);
     if (!targetEvent) return;
@@ -609,14 +645,9 @@ function openDetailModalById(id) {
     
     document.getElementById('modalInfoGrid').style.display = 'grid';
     document.getElementById('modalGameTitle').innerHTML = gameObj.title;
-    
-    // 타임라인 보정: 해당 단일 블록의 순수 플레이 시간과 전체 총합 누적 시간을 함께 투명하게 표기
     document.getElementById('modalGameTimeZone').innerHTML = `<span id="modalGameTime">${gameObj.time.toFixed(1)}</span> 시간 (전체 누적합: ${totalAggTime.toFixed(1)}h)`;
-    
-    // 💡 버그 픽스 포인트: 클릭한 그 날짜 세션 블록의 순수 시작일과 종료일만 독립 추출하여 세팅!
     document.getElementById('modalGameStartZone').innerHTML = `<span id="modalGameStart">${gameObj.startDate}</span>`;
     document.getElementById('modalGameEndZone').innerHTML = `<span id="modalGameEnd">${gameObj.endDate ? gameObj.endDate : '진행 중'}</span>`;
-    
     document.getElementById('modalGameTrophyZone').innerHTML = `<span id="modalGameTrophy">${gameObj.isEnding && gameObj.isEnding !== 'x' ? '🏆 엔딩 완료' : '진행 중'}</span>`;
     document.getElementById('modalGamePlatformZone').innerHTML = `<span id="modalGamePlatform">${gameObj.platform}</span>`;
     
@@ -644,7 +675,6 @@ function openDetailModalById(id) {
     document.getElementById('gameModal').style.display = "flex";
 }
 
-// 목록 및 카드 보기에서 접근 시 자동으로 가장 최신 세션을 식별해 ID 매칭 브릿지로 연결
 function openDetailModalByTitle(title) {
     let sameGames = localEvents.filter(e => e.title.toLowerCase() === title.toLowerCase());
     if(sameGames.length === 0) return;
@@ -813,7 +843,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isEnd) { let trophySpan = document.createElement('span'); trophySpan.className = 'game-bar-trophy'; trophySpan.innerText = '🏆'; customEl.appendChild(trophySpan); }
             return { domNodes: [customEl] };
         },
-        // 💡 버그 픽스 포인트: 달력에서 클릭 시, 이제 Title이 아닌 블록의 고유 Event ID를 직접 쏘아 정밀 편집 유도!
         eventClick: function(info) { openDetailModalById(info.event.id); }
     });
     calendar.render();
