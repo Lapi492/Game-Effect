@@ -86,9 +86,9 @@ function calculateTimeDifference() {
     document.getElementById('calcResultBox').innerHTML = `📈 계산 완료: 이전 기록 대비 <span style="color:#10b981; font-weight:bold; font-size:1.1em;">+${diff}</span> 시간 증가 자동 반영 완료!`;
 }
 
-// 3. 원클릭 스팀 최근 플레이 실시간 동기화 (CORS 다중 프록시 자동 우회)
-// 3. 원클릭 스팀 최근 플레이 실시간 동기화 (구글 백엔드 프록시 연동)
-async function syncRecentSteamPlaytime() {
+
+// 3. 원클릭 스팀 최근 플레이 실시간 동기화 (구글 백엔드 JSONP 연동 - CORS 회피)
+function syncRecentSteamPlaytime() {
     const creds = getSteamCredentials();
     if (!creds.apiKey || !creds.steamId) {
         alert("먼저 스팀 API 키와 SteamID64를 입력하고 저장해 주세요!");
@@ -104,18 +104,26 @@ async function syncRecentSteamPlaytime() {
     const syncBtns = document.querySelectorAll('button[onclick*="syncRecentSteamPlaytime"]');
     syncBtns.forEach(b => { b.disabled = true; b.innerText = "⏳ 스팀 통신 중..."; });
 
-    try {
-        // 구글 웹 앱을 프록시로 사용하여 스팀 API 직접 호출 (CORS 차단 완벽 우회)
-        const requestUrl = `${webAppUrl}?action=steamOwnedGames&key=${encodeURIComponent(creds.apiKey)}&steamid=${encodeURIComponent(creds.steamId)}`;
-        
-        const res = await fetch(requestUrl);
-        if (!res.ok) throw new Error("구글 웹 앱 통신 실패 (" + res.status + ")");
-        
-        const parsed = await res.json();
-        const games = parsed?.response?.games || [];
+    // 고유 콜백 함수 이름 생성
+    const callbackName = "handleSteamResponse_" + Date.now();
+    
+    // 응답 수신 핸들러 등록
+    window[callbackName] = function(parsed) {
+        // 임시 스크립트 태그 및 콜백 함수 정리
+        const scriptEl = document.getElementById(callbackName);
+        if (scriptEl) scriptEl.remove();
+        delete window[callbackName];
+        syncBtns.forEach(b => { b.disabled = false; b.innerText = "🔄 최근 플레이 동기화"; });
 
+        if (!parsed || parsed.error) {
+            alert("스팀 연동 실패: " + (parsed?.error || "데이터를 불러오지 못했습니다."));
+            return;
+        }
+
+        const games = parsed.response?.games || [];
         if (games.length === 0) {
-            throw new Error("스팀 라이브러리 데이터를 가져오지 못했습니다. 프로필 공개 설정 및 스팀 키를 확인해 주세요.");
+            alert("스팀 라이브러리 데이터를 가져오지 못했습니다. 프로필 공개 설정 및 스팀 키를 확인해 주세요.");
+            return;
         }
 
         let updatedCount = 0;
@@ -141,6 +149,7 @@ async function syncRecentSteamPlaytime() {
                 }
 
                 if (shouldMerge && existingRecords.length > 0) {
+                    // 1. 기존 가장 최신 기록 기간 연장 및 누적 합산
                     existingRecords.sort((a, b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
                     const latestRecord = existingRecords[existingRecords.length - 1];
 
@@ -154,6 +163,7 @@ async function syncRecentSteamPlaytime() {
 
                     sendDataToGoogleSheet(latestRecord.extendedProps);
                 } else {
+                    // 2. 새 개별 블록으로 생성
                     const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션');
                     localEvents.push(newGame);
                     sendDataToGoogleSheet(newGame.extendedProps);
@@ -169,11 +179,16 @@ async function syncRecentSteamPlaytime() {
         } else {
             alert("이미 모든 스팀 게임의 최신 플레이타임이 반영되어 있습니다! (새로 늘어난 시간 없음)");
         }
+    };
 
-    } catch (err) {
-        console.error("스팀 동기화 오류:", err);
-        alert(`스팀 연동 실패: ${err.message}`);
-    } finally {
+    // fetch 대신 <script> 태그를 동적으로 생성하여 주입 (CORS 차단 우회)
+    const requestUrl = `${webAppUrl}?action=steamOwnedGames&key=${encodeURIComponent(creds.apiKey)}&steamid=${encodeURIComponent(creds.steamId)}&callback=${callbackName}`;
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = requestUrl;
+    script.onerror = function() {
         syncBtns.forEach(b => { b.disabled = false; b.innerText = "🔄 최근 플레이 동기화"; });
-    }
+        alert("구글 웹 앱 통신 중 오류가 발생했습니다. 웹 앱 배포 URL 및 권한 설정을 확인해 주세요.");
+    };
+    document.body.appendChild(script);
 }
