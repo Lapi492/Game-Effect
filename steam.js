@@ -309,40 +309,25 @@ function syncRecentSteamPlaytime() {
                 ? localEvents.filter(e => String(e.extendedProps.steamAppId || '') === steamAppId)
                 : [];
             const existingRecords = appIdRecords;
-            const recordedTotalHours = existingRecords.reduce((sum, e) => sum + e.extendedProps.time, 0);
+            const recordsWithSteamTotal = existingRecords
+                .filter(record => record.extendedProps.steamTotal !== null && record.extendedProps.steamTotal !== '' && Number.isFinite(Number(record.extendedProps.steamTotal)))
+                .sort((first, second) => {
+                    const firstDate = first.extendedProps.startDate || '';
+                    const secondDate = second.extendedProps.startDate || '';
+                    return firstDate.localeCompare(secondDate) || first.id.localeCompare(second.id);
+                });
+            const lastRecordedSteamTotal = recordsWithSteamTotal.length
+                ? Number(recordsWithSteamTotal[recordsWithSteamTotal.length - 1].extendedProps.steamTotal)
+                : null;
+            const recordedTotalHours = lastRecordedSteamTotal ?? existingRecords.reduce((sum, e) => sum + e.extendedProps.time, 0);
             const diffHours = parseFloat((currentTotalSteamHours - recordedTotalHours).toFixed(1));
 
             if (diffHours > 0) {
-                let shouldMerge = false;
-                if (existingRecords.length > 0) {
-                    shouldMerge = confirm(
-                        `🎮 [${name}]의 새로운 플레이타임(+${diffHours}시간)이 감지되었습니다!\n\n` +
-                        `[확인]: 기존 플레이 바에 이어서 기간을 연장하고 합산합니다. (연속 바)\n` +
-                        `[취소]: 오늘 날짜(${todayStr}) 기준으로 새로운 개별 바로 등록합니다.`
-                    );
-                }
-
-                if (shouldMerge && existingRecords.length > 0) {
-                    // 1. 기존 가장 최신 기록 기간 연장 및 누적 합산
-                    existingRecords.sort((a, b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
-                    const latestRecord = existingRecords[existingRecords.length - 1];
-
-                    latestRecord.extendedProps.time = parseFloat((latestRecord.extendedProps.time + diffHours).toFixed(1));
-                    latestRecord.extendedProps.endDate = todayStr;
-                    latestRecord.extendedProps.rawEndDate = todayStr;
-                    latestRecord.extendedProps.steamAppId = steamAppId;
-
-                    const nextDay = new Date(todayStr);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    latestRecord.end = nextDay.toISOString().split('T')[0];
-
-                    sendDataToGoogleSheet(latestRecord.extendedProps);
-                } else {
-                    // 2. 새 개별 블록으로 생성
-                    const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션', '', false, steamAppId);
-                    localEvents.push(newGame);
-                    sendDataToGoogleSheet(newGame.extendedProps);
-                }
+                // 동기화할 때마다 하루 기록을 새로 만들어 정확한 증가 시간을 보존합니다.
+                const displayName = existingRecords[0]?.title || name;
+                const newGame = createGameObj(displayName, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션', '', false, steamAppId, currentTotalSteamHours);
+                localEvents.push(newGame);
+                sendDataToGoogleSheet(newGame.extendedProps);
                 updatedCount++;
             }
         }

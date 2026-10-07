@@ -6,6 +6,7 @@ let uniqueTitles = [];
 let currentSelectedEventId = null;
 let currentSelectedGameTitle = ""; 
 let calendar = null;
+let shortPlaytimeCollapseScheduled = false;
 
 function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
@@ -64,6 +65,91 @@ function addDays(dateStr, days) {
     let d = new Date(dateStr);
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
+}
+
+function getDatesInRange(startDate, endDate) {
+    const dates = [];
+    let current = new Date(`${startDate}T00:00:00`);
+    const last = new Date(`${endDate}T00:00:00`);
+    while (!isNaN(current.getTime()) && current <= last) {
+        dates.push(formatLocalDate(current));
+        current.setDate(current.getDate() + 1);
+    }
+    return dates;
+}
+
+function buildDailyCalendarEvents() {
+    const gamesByIdentity = new Map();
+    localEvents.forEach(event => {
+        const key = getGameIdentity(event);
+        const games = gamesByIdentity.get(key) || [];
+        games.push(event);
+        gamesByIdentity.set(key, games);
+    });
+
+    const calendarEvents = [];
+    gamesByIdentity.forEach(games => {
+        games.sort((first, second) => {
+            const firstDate = first.extendedProps.startDate || '';
+            const secondDate = second.extendedProps.startDate || '';
+            return firstDate.localeCompare(secondDate) || first.id.localeCompare(second.id);
+        });
+
+        games.forEach(event => {
+            const game = event.extendedProps;
+            const dates = getDatesInRange(game.startDate, game.rawEndDate || game.endDate || game.startDate);
+            if (dates.length === 0) return;
+            const hasExactDailySteamTime = game.steamTotal !== null && game.steamTotal !== '' && Number.isFinite(Number(game.steamTotal)) && dates.length === 1;
+            if (hasExactDailySteamTime) {
+                calendarEvents.push({
+                    id: `${event.id}_${dates[0]}`,
+                    title: event.title,
+                    start: dates[0],
+                    end: addDays(dates[0], 1),
+                    backgroundColor: event.backgroundColor || determineEventColor(game),
+                    extendedProps: {
+                        ...game,
+                        originalEventId: event.id,
+                        displayTotalTime: Number(game.steamTotal),
+                        dailyIncrease: Number(game.time || 0),
+                        hasExactDailySteamTime: true
+                    }
+                });
+            } else {
+                calendarEvents.push({ ...event, extendedProps: { ...game, originalEventId: event.id } });
+            }
+        });
+    });
+    return calendarEvents;
+}
+
+function scheduleShortPlaytimeCollapse() {
+    if (shortPlaytimeCollapseScheduled) return;
+    shortPlaytimeCollapseScheduled = true;
+    requestAnimationFrame(() => {
+        shortPlaytimeCollapseScheduled = false;
+        document.querySelectorAll('.fc-daygrid-day').forEach(day => {
+            day.querySelector('.short-playtime-toggle')?.remove();
+            day.querySelectorAll('.fc-daygrid-event-harness').forEach(harness => harness.classList.remove('is-short-playtime-hidden'));
+
+            const shortHarnesses = [...day.querySelectorAll('.fc-daygrid-event-harness[data-short-playtime="true"]')];
+            if (shortHarnesses.length < 3) return;
+
+            let expanded = false;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'short-playtime-toggle';
+            const update = () => {
+                shortHarnesses.forEach(harness => harness.classList.toggle('is-short-playtime-hidden', !expanded));
+                button.innerText = expanded
+                    ? `▴ 1시간 이하 기록 ${shortHarnesses.length}개 접기`
+                    : `▾ 1시간 이하 기록 ${shortHarnesses.length}개 보기`;
+            };
+            button.addEventListener('click', () => { expanded = !expanded; update(); });
+            day.querySelector('.fc-daygrid-day-events')?.appendChild(button);
+            update();
+        });
+    });
 }
 
 function SmartDateFormatter(inputStr) {
@@ -245,14 +331,15 @@ function handleGameSubmit(event) {
     document.getElementById('autocompleteList').style.display = 'none';
 }
 
-function createGameObj(name, start, end, platform, time, endingStatus, memo, review, isCheckEnding = false, steamAppId = '') {
+function createGameObj(name, start, end, platform, time, endingStatus, memo, review, isCheckEnding = false, steamAppId = '', steamTotal = null) {
     let uniqueId = 'evt_' + Math.random().toString(36).substr(2, 9);
     let displayEnd = end === start ? '' : end; 
     
     let gameObj = {
         id: uniqueId, title: name, startDate: start, endDate: displayEnd, rawEndDate: end,     
         platform: platform, time: parseFloat(time || 0), isEnding: endingStatus, memo: memo || '', review: review || '',
-        steamAppId: String(steamAppId || (String(platform).toLocaleLowerCase() === 'steam' ? getSteamAppIdForTitle(name) : ''))
+        steamAppId: String(steamAppId || (String(platform).toLocaleLowerCase() === 'steam' ? getSteamAppIdForTitle(name) : '')),
+        steamTotal: steamTotal !== null && steamTotal !== '' && Number.isFinite(Number(steamTotal)) ? Number(steamTotal) : null
     };
 
     let eventObj = { id: uniqueId, title: name, start: start, extendedProps: gameObj };
@@ -676,16 +763,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth', locale: 'ko',
-        events: function(fetchInfo, successCallback, failureCallback) { successCallback(localEvents); },
+        events: function(fetchInfo, successCallback, failureCallback) { successCallback(buildDailyCalendarEvents()); },
         eventContent: function(arg) {
             let isEnd = arg.event.extendedProps.isEnding && arg.event.extendedProps.isEnding !== 'x';
             let customEl = document.createElement('div'); customEl.className = 'game-bar'; customEl.style.backgroundColor = arg.event.backgroundColor;
-            let textSpan = document.createElement('span'); textSpan.className = 'game-bar-text'; textSpan.innerText = `${arg.event.title} (${arg.event.extendedProps.time}h)`;
+            let textSpan = document.createElement('span'); textSpan.className = 'game-bar-text';
+            if (arg.event.extendedProps.hasExactDailySteamTime) {
+                let totalTime = Number(arg.event.extendedProps.displayTotalTime);
+                let dailyIncrease = Number(arg.event.extendedProps.dailyIncrease);
+                textSpan.innerText = `${arg.event.title} (총 ${totalTime.toFixed(1)}h +${dailyIncrease.toFixed(1)}h)`;
+            } else {
+                textSpan.innerText = `${arg.event.title} (${Number(arg.event.extendedProps.time || 0).toFixed(1)}h)`;
+            }
             customEl.appendChild(textSpan);
             if (isEnd) { let trophySpan = document.createElement('span'); trophySpan.className = 'game-bar-trophy'; trophySpan.innerText = '🏆'; customEl.appendChild(trophySpan); }
             return { domNodes: [customEl] };
         },
-        eventClick: function(info) { openDetailModalById(info.event.id); }
+        eventDidMount: function(info) {
+            const harness = info.el.closest('.fc-daygrid-event-harness');
+            if (harness && Number(info.event.extendedProps.time || 0) <= 1) harness.dataset.shortPlaytime = 'true';
+            scheduleShortPlaytimeCollapse();
+        },
+        eventClick: function(info) { openDetailModalById(info.event.extendedProps.originalEventId || info.event.id); }
     });
     calendar.render();
 

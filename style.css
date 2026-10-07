@@ -401,6 +401,23 @@ h1 {
     transform: translateY(-5px); box-shadow: 0 8px 20px rgba(129, 140, 248, 0.2); border-color: #818cf8;
 }
 
+.fc-daygrid-event-harness.is-short-playtime-hidden { display: none; }
+.short-playtime-toggle {
+    width: 100%;
+    margin: 2px 0;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: #3f3f50;
+    color: #c7d2fe;
+    font: inherit;
+    font-size: 0.75em;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: left;
+}
+.short-playtime-toggle:hover { background: #4f46e5; color: white; }
+
 .card-ending-badge {
     position: absolute;
     top: 15px; right: 15px;
