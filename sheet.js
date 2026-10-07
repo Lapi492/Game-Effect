@@ -20,7 +20,7 @@ function toggleSpreadsheetGuide() {
     let button = document.getElementById('spreadsheetGuideButton');
     let isVisible = guide.classList.toggle('is-visible');
     button.setAttribute('aria-expanded', String(isVisible));
-    button.innerText = isVisible ? '📕 시트 최소 조건 안내 닫기' : '📋 시트 최소 조건 안내';
+    button.innerText = isVisible ? '📕 처음 설정하기 닫기' : '📋 처음 설정하기';
 }
 
 function getSavedWebAppUrl() {

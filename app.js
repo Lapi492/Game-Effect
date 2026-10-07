@@ -324,6 +324,63 @@ function calculateYearlyReport(targetYear) {
     buildAggregatedCards('year-list-container', targetYear);
 }
 
+function formatLocalDate(date) {
+    let year = date.getFullYear();
+    let month = String(date.getMonth() + 1).padStart(2, '0');
+    let day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function renderRecentWeekGames() {
+    let container = document.getElementById('recentWeekGames');
+    if (!container) return;
+
+    let today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - 6);
+    let todayText = formatLocalDate(today);
+    let weekStartText = formatLocalDate(weekStart);
+
+    let recentGames = localEvents.filter(event => {
+        let game = event.extendedProps;
+        let startDate = game.startDate || '';
+        let endDate = game.rawEndDate || game.endDate || startDate;
+        return startDate <= todayText && endDate >= weekStartText;
+    }).sort((a, b) => {
+        let aDate = a.extendedProps.rawEndDate || a.extendedProps.startDate;
+        let bDate = b.extendedProps.rawEndDate || b.extendedProps.startDate;
+        return bDate.localeCompare(aDate);
+    });
+
+    container.innerHTML = '';
+    if (recentGames.length === 0) {
+        let empty = document.createElement('div');
+        empty.className = 'recent-week-empty';
+        empty.innerText = '최근 7일에 기록한 게임이 없습니다.';
+        container.appendChild(empty);
+        return;
+    }
+
+    recentGames.slice(0, 6).forEach(event => {
+        let game = event.extendedProps;
+        let item = document.createElement('div');
+        item.className = 'recent-week-item';
+        item.addEventListener('click', () => openDetailModalById(event.id));
+
+        let title = document.createElement('span');
+        title.className = 'recent-week-game';
+        title.innerText = game.title;
+
+        let meta = document.createElement('span');
+        meta.className = 'recent-week-meta';
+        meta.innerText = `${game.startDate} · ${game.time.toFixed(1)}h`;
+
+        item.append(title, meta);
+        container.appendChild(item);
+    });
+}
+
 function refreshUI() {
     let yearSelect = document.getElementById('reportYearSelect');
     let currentSelectedYear = yearSelect.value;
@@ -349,6 +406,7 @@ function refreshUI() {
     if (calendar) { calendar.refetchEvents(); }
     buildAggregatedCards('list-container'); 
     if (yearSelect.value) calculateYearlyReport(yearSelect.value);
+    renderRecentWeekGames();
 }
 
 function openDetailModalById(id) {

@@ -12,30 +12,33 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.3.1</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.0</span></h1>
+
+    <div class="app-layout">
+    <main class="app-main">
 
     <details class="integration-panel">
-        <summary>📂 시트 연동 및 양방향 저장 설정</summary>
+        <summary>📂 구글 시트 연결하기</summary>
         <div class="integration-panel-content">
         <div class="integration-row">
-            <span class="url-input-label" style="width: 130px;">📂 1. 시트 데이터 연동:</span>
+            <span class="url-input-label" style="width: 130px;">📂 1. 기록 가져오기:</span>
             <input type="text" id="spreadsheetUrlInput" class="url-input-field" placeholder="구글 스프레드시트 주소(URL)를 입력하세요.">
-            <button type="button" class="sync-trigger-btn" onclick="forceFetchSpreadsheetData()">⚡ 시트 불러오기</button>
+            <button type="button" class="sync-trigger-btn" onclick="forceFetchSpreadsheetData()">⚡ 기록 가져오기</button>
         </div>
         <div class="integration-row integration-row-bordered">
-            <span class="url-input-label" style="width: 130px; color: #10b981;">💾 2. 양방향 저장 연동:</span>
-            <input type="text" id="webAppUrlInput" class="url-input-field" style="border-color: #10b981;" placeholder="구글 앱스 스크립트 웹 앱 URL(macros/s/.../exec) 주소를 입력하세요.">
-            <button type="button" class="sync-trigger-btn" style="background-color: #10b981;" onclick="saveWebAppUrlFromInput()">🔒 주소 저장하기</button>
+            <span class="url-input-label" style="width: 130px; color: #10b981;">💾 2. 기록 저장하기:</span>
+            <input type="text" id="webAppUrlInput" class="url-input-field" style="border-color: #10b981;" placeholder="구글 시트 저장 주소(/exec)를 입력하세요.">
+            <button type="button" class="sync-trigger-btn" style="background-color: #10b981;" onclick="saveWebAppUrlFromInput()">🔒 저장 주소 입력</button>
         </div>
         <div class="integration-row integration-row-bordered sheet-tools-row">
-            <span class="url-input-label" style="width: 130px; color: #fbbf24;">🧰 3. 데이터 도구:</span>
-            <button type="button" id="spreadsheetGuideButton" class="sync-trigger-btn template-btn" onclick="toggleSpreadsheetGuide()" aria-expanded="false">📋 시트 최소 조건 안내</button>
-            <button type="button" class="sync-trigger-btn cleanup-btn" onclick="cleanLocalGameData()">🧹 데이터 정리</button>
-            <button type="button" class="sync-trigger-btn export-btn" onclick="downloadRecordsAsCsv()">📥 Excel용 CSV 파일 다운로드</button>
+            <span class="url-input-label" style="width: 130px; color: #fbbf24;">🧰 3. 기록 도구:</span>
+            <button type="button" id="spreadsheetGuideButton" class="sync-trigger-btn template-btn" onclick="toggleSpreadsheetGuide()" aria-expanded="false">📋 처음 설정하기</button>
+            <button type="button" class="sync-trigger-btn cleanup-btn" onclick="cleanLocalGameData()">🧹 기록 정리</button>
+            <button type="button" class="sync-trigger-btn export-btn" onclick="downloadRecordsAsCsv()">📥 엑셀 파일로 저장</button>
         </div>
         <section id="spreadsheetGuide" class="spreadsheet-guide" aria-live="polite">
-            <h2>📋 스프레드시트 최소 조건</h2>
-            <p>첫 번째 행은 항목 이름을 적는 <strong>헤더 행</strong>입니다. 최소한 아래 두 칸은 반드시 필요합니다.</p>
+            <h2>📋 처음 연결하기</h2>
+            <p>첫 번째 줄에는 항목 이름을 적습니다. 최소한 아래 두 칸은 꼭 필요합니다.</p>
             <div class="sheet-header-example">
                 <div><strong>A1</strong><span>이름</span><small>필수</small></div>
                 <div><strong>B1</strong><span>시작일</span><small>필수</small></div>
@@ -48,16 +51,16 @@
                     <strong>1</strong><span class="sheet-required">이름</span><span class="sheet-required">시작일</span><span>종료일</span><span>플랫폼</span>
                     <strong>2</strong><span>예시 게임</span><span>2026-10-08</span><span>2026-10-08</span><span>steam</span>
                 </div>
-                <small>1행은 항목 이름을 입력하는 헤더 행입니다. 노란색 칸은 필수입니다.</small>
+                <small>1행은 항목 이름을 입력하는 첫 줄입니다. 노란색 칸은 꼭 필요합니다.</small>
             </div>
 
-            <h3>Apps Script 작성 방법</h3>
+            <h3>연결 코드 넣는 방법</h3>
             <ol>
                 <li>스프레드시트에서 <strong>확장 프로그램 → Apps Script</strong>를 엽니다.</li>
                 <li>기존 코드를 지우고 아래 코드를 붙여 넣은 뒤 저장합니다.</li>
                 <li><strong>배포 → 새 배포 → 웹 앱</strong>을 선택합니다.</li>
                 <li>실행 계정은 <strong>나</strong>, 액세스 권한은 <strong>모든 사용자</strong>로 설정합니다.</li>
-                <li>생성된 <code>/exec</code> 주소를 복사해 위의 <strong>양방향 저장 연동</strong>에 저장합니다.</li>
+                <li>생성된 <code>/exec</code> 주소를 복사해 위의 <strong>기록 저장하기</strong>에 넣습니다.</li>
             </ol>
 
             <pre class="guide-code"><code>const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
@@ -95,15 +98,15 @@ function toRow(data) {
 function output(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }</code></pre>
-            <p class="guide-note">Steam 최근 플레이 동기화까지 사용하려면 README의 전체 Apps Script 코드에 있는 <code>doGet</code> 함수도 추가하세요.</p>
+            <p class="guide-note">Steam 기록도 가져오려면 README에 있는 전체 연결 코드를 사용하세요.</p>
         </section>
         </div>
     </details>
 
     <details class="integration-panel steam-integration-panel">
-        <summary>🎮 Steam 연동 설정</summary>
+        <summary>🎮 Steam 연결하기</summary>
         <div class="integration-panel-content integration-row">
-        <span class="url-input-label" style="color: #60a5fa;">🎮 스팀 연동:</span>
+        <span class="url-input-label" style="color: #60a5fa;">🎮 Steam:</span>
         <input type="password" id="steamApiKeyInput" class="url-input-field" placeholder="Steam Web API Key 입력">
         <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
         <button type="button" class="sync-trigger-btn" style="background-color: #2563eb;" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
@@ -111,7 +114,7 @@ function output(data) {
     </details>
 
     <div class="top-action-bar" style="background-color: #23232f; border-color: #818cf8; margin-bottom: 25px;">
-        <span class="url-input-label" style="color: #818cf8;">🔍 아카이브 통합 검색:</span>
+        <span class="url-input-label" style="color: #818cf8;">🔍 기록 찾기:</span>
         <input type="text" id="searchTitleInput" class="url-input-field" placeholder="게임 제목으로 필터링...">
         <input type="text" id="searchDateInput" class="url-input-field" placeholder="날짜 또는 기간 범위 검색 (예: 2026-07) 또는 범위 (2026-07-01 ~ 2026-07-05)">
         <button type="button" class="sync-trigger-btn" style="background-color: #f59e0b;" onclick="clearSearchFilters()">🔄 검색 초기화</button>
@@ -119,7 +122,7 @@ function output(data) {
 
     <div class="flex-forms-wrapper">
         <div class="form-container">
-            <div class="form-title">➕ 새 게임 기록 추가</div>
+            <div class="form-title">➕ 게임 기록하기</div>
             <form id="gameForm" autocomplete="off">
                 <div class="form-grid">
                     <div class="input-group">
@@ -128,15 +131,15 @@ function output(data) {
                         <div id="autocompleteList" class="autocomplete-list"></div>
                     </div>
                     <div class="input-group">
-                        <label for="gameTime">플레이 시간(시간) *</label>
+                        <label for="gameTime">플레이 시간 *</label>
                         <input type="number" id="gameTime" step="0.1" required placeholder="예: 3">
                     </div>
                     <div class="input-group">
-                        <label interpreter="text" for="gameStart">시작 날짜 (선택)</label>
+                        <label interpreter="text" for="gameStart">시작한 날 (선택)</label>
                         <input type="text" id="gameStart" placeholder="공백=현재날짜 / 수동=07-01">
                     </div>
                     <div class="input-group">
-                        <label for="gameEnd">종료 날짜 (선택)</label>
+                        <label for="gameEnd">끝낸 날 (선택)</label>
                         <input type="text" id="gameEnd" placeholder="공백=현재날짜 / 수동=07-08">
                     </div>
                     <div class="input-group">
@@ -157,7 +160,7 @@ function output(data) {
                     </div>
                     <div class="checkbox-group">
                         <input type="checkbox" id="gameIsEnding">
-                        <label for="gameIsEnding">🏆 엔딩 달성</label>
+                        <label for="gameIsEnding">🏆 엔딩 봤어요</label>
                     </div>
                     <div class="form-submit-actions">
                         <button type="submit" class="submit-btn">기록하기</button>
@@ -168,14 +171,14 @@ function output(data) {
         </div>
 
         <div class="calculator-container">
-            <div class="form-title" style="color: #10b981;">⏱️ 플레이타임 시간 계산기</div>
+            <div class="form-title" style="color: #10b981;">⏱️ 플레이 시간 계산</div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div class="input-group">
-                    <label>이전 누적 플레이 시간 (h)</label>
-                    <input type="number" id="calcPrevTime" step="0.1" placeholder="기존 누적 합 자동 반영">
+                    <label>전에 기록한 총 시간</label>
+                    <input type="number" id="calcPrevTime" step="0.1" placeholder="전에 기록한 시간 자동 입력">
                 </div>
                 <div class="input-group" style="margin-top: 5px;">
-                    <label>현재 총 플레이 시간 (h)</label>
+                    <label>지금 게임에 나온 총 시간</label>
                     <input type="number" id="calcCurrTime" step="0.1" placeholder="예: 48.5">
                 </div>
                 <button type="button" class="calc-btn" onclick="calculateTimeDifference()">차이 계산 및 입력필드 반영</button>
@@ -188,8 +191,8 @@ function output(data) {
     
     <div class="tab-container">
         <button class="tab-btn active" onclick="switchTab('calendar-view')">📅 달력 보기</button>
-        <button class="tab-btn" onclick="switchTab('list-view')">🗂 전체 목록</button>
-        <button class="tab-btn" onclick="switchTab('report-view')">📊 연도별 리포트</button>
+        <button class="tab-btn" onclick="switchTab('list-view')">🗂 모든 기록</button>
+        <button class="tab-btn" onclick="switchTab('report-view')">📊 연도별 요약</button>
     </div>
     
     <div id="calendar-view" class="content-view active">
@@ -224,12 +227,12 @@ function output(data) {
                 <div class="stats-subtext" id="statMostPlayedTime">0h 플레이</div>
             </div>
             <div class="stats-box">
-                <div class="stats-label">💬 최신 한줄평 요약</div>
+                <div class="stats-label">💬 최근 한줄평</div>
                 <div class="stats-number" id="statLongestMemo" style="font-size:0.9em; font-weight:normal; color:#cbd5e1; line-height:1.4;">-</div>
             </div>
         </div>
 
-        <div style="max-width:1200px; margin: 0 auto 15px auto; padding-left:5px; font-weight:bold; color:#9ca3af;">🗂️ 해당 연도 통합 게임 카드 (플레이타임 합산 요약)</div>
+        <div style="max-width:1200px; margin: 0 auto 15px auto; padding-left:5px; font-weight:bold; color:#9ca3af;">🗂️ 이 해에 한 게임</div>
         <div id="year-list-container"></div>
     </div>
 
@@ -238,22 +241,22 @@ function output(data) {
             <span class="close-btn" id="closeModal" onclick="closeGameModal()">&times;</span>
             <div class="modal-title" id="modalGameTitle">게임 이름</div>
             
-            <div class="modal-section-title">💬 게임 전체 한줄평 (엔딩 및 종합 인상 평가)</div>
+            <div class="modal-section-title">💬 한줄평</div>
             <div class="modal-review-zone-wrapper" id="modalReviewWrapperZone">
-                <div class="modal-review-box" id="modalGameReviewBox" placeholder="이곳을 클릭해 이 게임의 최종 한줄평 또는 엔딩 인상 비평을 입력하세요.">등록된 한줄평이 없습니다.</div>
+                <div class="modal-review-box" id="modalGameReviewBox" placeholder="이 게임의 한줄평을 적어 보세요.">아직 한줄평이 없습니다.</div>
             </div>
 
             <div class="info-grid" id="modalInfoGrid">
                 <div class="info-label">⏱️ 플레이타임</div>
                 <div class="info-value" id="modalGameTimeZone"><span id="modalGameTime">0</span> 시간</div>
                 
-                <div class="info-label">📅 시작 날짜</div>
+                <div class="info-label">📅 시작한 날</div>
                 <div class="info-value" id="modalGameStartZone"><span id="modalGameStart">-</span></div>
 
-                <div class="info-label">📅 종료 날짜</div>
+                <div class="info-label">📅 끝낸 날</div>
                 <div class="info-value" id="modalGameEndZone"><span id="modalGameEnd">-</span></div>
                 
-                <div class="info-label">🏆 엔딩 여부</div>
+                <div class="info-label">🏆 엔딩 봤나요?</div>
                 <div class="info-value" id="modalGameTrophyZone"><span id="modalGameTrophy">-</span></div>
                 
                 <div class="info-label">🕹️ 플랫폼</div>
@@ -263,7 +266,7 @@ function output(data) {
             <div class="modal-memo-write-zone" id="quickMemoZone">
                 <div class="memo-date-input-wrapper">
                     <span class="memo-date-label">📅 기록 날짜:</span>
-                    <input type="text" id="modalMemoDateInput" class="memo-date-field" placeholder="비워두면 선택한 기록의 기간으로 자동 연동">
+                    <input type="text" id="modalMemoDateInput" class="memo-date-field" placeholder="비워두면 이 기록의 날짜로 입력됩니다.">
                 </div>
                 <textarea id="modalInstantMemoInput" class="modal-textarea" placeholder="메모/세션 일지 내용을 작성해 보세요!"></textarea>
                 <div class="memo-btn-row">
@@ -271,7 +274,7 @@ function output(data) {
                 </div>
             </div>
 
-            <div class="info-label" style="margin-top: 10px; color:#cbd5e1;" id="modalMemoTitleLabel">📝 날짜순 누적 메모 타임라인</div>
+            <div class="info-label" style="margin-top: 10px; color:#cbd5e1;" id="modalMemoTitleLabel">📝 날짜별 메모</div>
             <div id="modalGameMemoZone" style="margin-top: 5px;">
                 <div class="timeline-container" id="modalGameMemoTimeline"></div>
             </div>
@@ -282,6 +285,13 @@ function output(data) {
                 <button class="action-btn delete-btn" id="btnDelete" onclick="deleteCurrentGame()">삭제</button>
             </div>
         </div>
+    </div>
+
+    </main>
+    <aside class="recent-week-sidebar" aria-labelledby="recentWeekTitle">
+        <div class="recent-week-title" id="recentWeekTitle">🎮 최근 7일에 기록한 게임</div>
+        <div id="recentWeekGames" class="recent-week-list">최근 7일에 기록한 게임이 없습니다.</div>
+    </aside>
     </div>
 
     <!-- 스크립트 순서: steam.js -> sheet.js -> app.js 순서 유지 -->
