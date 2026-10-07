@@ -122,7 +122,7 @@ function SmartDateFormatter(inputStr) {
 }
 
 // ==========================================
-// ⏱️ 3. 플레이타임 실시간 연동 계산기 시스템 (옵션 2 포함)
+// ⏱️ 3. [옵션 2] 플레이타임 실시간 연동 계산기 시스템
 // ==========================================
 async function autoFillPrevTime(gameNameInput) {
     let trimmed = gameNameInput.trim().toLowerCase();
@@ -136,7 +136,7 @@ async function autoFillPrevTime(gameNameInput) {
     let currentTotal = sameGames.reduce((acc, curr) => acc + curr.extendedProps.time, 0);
     document.getElementById('calcPrevTime').value = currentTotal > 0 ? currentTotal.toFixed(1) : '0';
 
-    // 2. [옵션 2] 스팀 연동 정보가 있다면 스팀 API에서 최신 총 플레이 시간을 실시간 조회하여 '현재 총 플레이 시간'에 자동 입력
+    // 2. 스팀 최신 총 플레이 시간 실시간 조회 및 자동 입력
     const steamCreds = getSteamCredentials();
     if (steamCreds.apiKey && steamCreds.steamId) {
         try {
@@ -151,7 +151,6 @@ async function autoFillPrevTime(gameNameInput) {
                 if (foundGame) {
                     const steamHours = (foundGame.playtime_forever / 60).toFixed(1);
                     document.getElementById('calcCurrTime').value = steamHours;
-                    // 자동으로 차이 계산 실행
                     calculateTimeDifference();
                 }
             }
@@ -174,7 +173,7 @@ function calculateTimeDifference() {
 }
 
 // ==========================================
-// 🚀 [옵션 1] 원클릭 스팀 최근 플레이 실시간 동기화 (+갱신 분기 질문)
+// 🚀 [옵션 1] 원클릭 스팀 최근 플레이 실시간 동기화 (+연장/새 블록 분기 질문)
 // ==========================================
 async function syncRecentSteamPlaytime() {
     const creds = getSteamCredentials();
@@ -183,11 +182,10 @@ async function syncRecentSteamPlaytime() {
         return;
     }
 
-    const btn = event?.target;
-    if(btn) { btn.disabled = true; btn.innerText = "⏳ 스팀 동기화 중..."; }
+    const syncBtns = document.querySelectorAll('button[onclick*="syncRecentSteamPlaytime"]');
+    syncBtns.forEach(b => { b.disabled = true; b.innerText = "⏳ 스팀 동기화 중..."; });
 
     try {
-        // 최근 2주간 플레이한 게임 목록 조회
         const targetUrl = `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001/?key=${creds.apiKey}&steamid=${creds.steamId}&format=json`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
         const res = await fetch(proxyUrl);
@@ -197,7 +195,6 @@ async function syncRecentSteamPlaytime() {
         const recentGames = parsed.response?.games || [];
         if(recentGames.length === 0) {
             alert("최근 2주간 플레이한 스팀 게임 기록이 없습니다.");
-            if(btn) { btn.disabled = false; btn.innerText = "🔄 스팀 최근 플레이 동기화"; }
             return;
         }
 
@@ -216,7 +213,6 @@ async function syncRecentSteamPlaytime() {
             const diffHours = parseFloat((currentTotalSteamHours - recordedTotalHours).toFixed(1));
 
             if(diffHours > 0) {
-                // 이전 기록이 존재하는 경우 -> 이어서 기록할지 끊어서 새로 기록할지 질문!
                 let shouldMerge = false;
                 if(existingRecords.length > 0) {
                     shouldMerge = confirm(
@@ -227,7 +223,6 @@ async function syncRecentSteamPlaytime() {
                 }
 
                 if(shouldMerge && existingRecords.length > 0) {
-                    // 1. 기존 가장 최신 기록을 찾아 기간 연장 및 플레이타임 누적 합산
                     existingRecords.sort((a,b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
                     const latestRecord = existingRecords[existingRecords.length - 1];
 
@@ -235,14 +230,12 @@ async function syncRecentSteamPlaytime() {
                     latestRecord.extendedProps.endDate = todayStr;
                     latestRecord.extendedProps.rawEndDate = todayStr;
 
-                    // 달력 이벤트 바 마감일자 갱신 (+1일 오프셋)
                     const nextDay = new Date(todayStr);
                     nextDay.setDate(nextDay.getDate() + 1);
                     latestRecord.end = nextDay.toISOString().split('T')[0];
 
                     sendDataToGoogleSheet(latestRecord.extendedProps);
                 } else {
-                    // 2. 새 개별 이벤트 블록으로 독립 생성
                     const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션');
                     localEvents.push(newGame);
                     sendDataToGoogleSheet(newGame.extendedProps);
@@ -263,7 +256,7 @@ async function syncRecentSteamPlaytime() {
         console.error("스팀 동기화 실패:", err);
         alert("스팀 데이터를 가져오는 중 오류가 발생했습니다. API 키와 프로필 공개 설정을 확인해 주세요.");
     } finally {
-        if(btn) { btn.disabled = false; btn.innerText = "🔄 스팀 최근 플레이 동기화"; }
+        syncBtns.forEach(b => { b.disabled = false; b.innerText = "🔄 최근 플레이 동기화"; });
     }
 }
 
