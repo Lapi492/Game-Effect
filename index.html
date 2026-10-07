@@ -12,7 +12,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.0</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.7</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -288,11 +288,15 @@ function output(data) {
     </div>
 
     </main>
-    <aside class="recent-week-sidebar" aria-labelledby="recentWeekTitle">
-        <div class="recent-week-title" id="recentWeekTitle">🎮 최근 7일에 기록한 게임</div>
+    <aside class="recent-week-sidebar" aria-labelledby="topGamesTitle">
+        <div class="recent-week-title" id="topGamesTitle">🎮 최근 7일 플레이 시간 TOP 10</div>
         <div id="recentWeekGames" class="recent-week-list">최근 7일에 기록한 게임이 없습니다.</div>
     </aside>
     </div>
+
+    <button type="button" class="floating-menu-button" aria-label="메뉴" title="메뉴">
+        <img src="menu-character.png" alt="팝콘을 든 캐릭터">
+    </button>
 
     <!-- 스크립트 순서: steam.js -> sheet.js -> app.js 순서 유지 -->
     <script src="steam.js"></script>

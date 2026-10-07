@@ -16,6 +16,8 @@ h1 {
     gap: 28px;
     max-width: 1548px;
     margin: 0 auto;
+    position: relative;
+    left: 96px;
     align-items: start;
 }
 .app-main { min-width: 0; }
@@ -487,8 +489,33 @@ h1 {
 .delete-btn { background-color: #ef4444; color: white; }
 .delete-btn:hover { background-color: #dc2626; }
 
+/* 왼쪽 아래 캐릭터 메뉴 */
+.floating-menu-button {
+    position: fixed;
+    left: 22px;
+    bottom: 22px;
+    z-index: 1000;
+    width: 92px;
+    height: 92px;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.35));
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+.floating-menu-button:hover { transform: translateY(-4px) scale(1.05); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45)); }
+.floating-menu-button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+.floating-menu-button img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 @media (max-width: 1600px) {
-    .app-layout { display: block; }
+    .app-layout { display: block; left: 0; }
     .recent-week-sidebar {
         position: static;
         max-width: 1200px;
@@ -549,4 +576,5 @@ h1 {
     .action-btn { flex: 1; }
     .memo-date-input-wrapper { flex-direction: column; align-items: stretch; }
     .sheet-header-example div { justify-content: space-between; }
+    .floating-menu-button { left: 14px; bottom: 14px; width: 70px; height: 70px; }
 }

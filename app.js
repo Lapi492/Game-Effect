@@ -331,7 +331,7 @@ function formatLocalDate(date) {
     return `${year}-${month}-${day}`;
 }
 
-function renderRecentWeekGames() {
+function renderTopGames() {
     let container = document.getElementById('recentWeekGames');
     if (!container) return;
 
@@ -342,19 +342,26 @@ function renderRecentWeekGames() {
     let todayText = formatLocalDate(today);
     let weekStartText = formatLocalDate(weekStart);
 
-    let recentGames = localEvents.filter(event => {
+    let gamesByTitle = new Map();
+    localEvents.forEach(event => {
         let game = event.extendedProps;
+        let title = (game.title || event.title || '').trim();
         let startDate = game.startDate || '';
-        let endDate = game.rawEndDate || game.endDate || startDate;
-        return startDate <= todayText && endDate >= weekStartText;
-    }).sort((a, b) => {
-        let aDate = a.extendedProps.rawEndDate || a.extendedProps.startDate;
-        let bDate = b.extendedProps.rawEndDate || b.extendedProps.startDate;
-        return bDate.localeCompare(aDate);
+        if (!title || startDate < weekStartText || startDate > todayText) return;
+
+        let key = title.toLocaleLowerCase();
+        let current = gamesByTitle.get(key) || { title: title, time: 0, event: event };
+        current.time += Number(game.time) || 0;
+        if ((game.rawEndDate || game.startDate || '') >= (current.event.extendedProps.rawEndDate || current.event.extendedProps.startDate || '')) {
+            current.event = event;
+        }
+        gamesByTitle.set(key, current);
     });
 
+    let topGames = [...gamesByTitle.values()].sort((a, b) => b.time - a.time || a.title.localeCompare(b.title, 'ko'));
+
     container.innerHTML = '';
-    if (recentGames.length === 0) {
+    if (topGames.length === 0) {
         let empty = document.createElement('div');
         empty.className = 'recent-week-empty';
         empty.innerText = '최근 7일에 기록한 게임이 없습니다.';
@@ -362,19 +369,18 @@ function renderRecentWeekGames() {
         return;
     }
 
-    recentGames.slice(0, 6).forEach(event => {
-        let game = event.extendedProps;
+    topGames.slice(0, 10).forEach((game, index) => {
         let item = document.createElement('div');
         item.className = 'recent-week-item';
-        item.addEventListener('click', () => openDetailModalById(event.id));
+        item.addEventListener('click', () => openDetailModalById(game.event.id));
 
         let title = document.createElement('span');
         title.className = 'recent-week-game';
-        title.innerText = game.title;
+        title.innerText = `${index + 1}. ${game.title}`;
 
         let meta = document.createElement('span');
         meta.className = 'recent-week-meta';
-        meta.innerText = `${game.startDate} · ${game.time.toFixed(1)}h`;
+        meta.innerText = `${game.time.toFixed(1)}h`;
 
         item.append(title, meta);
         container.appendChild(item);
@@ -406,7 +412,7 @@ function refreshUI() {
     if (calendar) { calendar.refetchEvents(); }
     buildAggregatedCards('list-container'); 
     if (yearSelect.value) calculateYearlyReport(yearSelect.value);
-    renderRecentWeekGames();
+    renderTopGames();
 }
 
 function openDetailModalById(id) {
