@@ -200,7 +200,7 @@ function findDuplicateSteamRecords() {
 
         const key = `${steamAppId}\u001F${time}`;
         const group = groups.get(key) || { steamAppId, time, records: [] };
-        group.records.push(game);
+        group.records.push({ eventId: event.id, game });
         groups.set(key, group);
     });
 
@@ -218,10 +218,36 @@ function findDuplicateSteamRecords() {
     duplicates.forEach(group => {
         const item = document.createElement('div');
         item.className = 'duplicate-steam-report-item';
-        const names = [...new Set(group.records.map(record => record.title))].join(', ');
-        item.innerText = `AppID ${group.steamAppId} · ${group.time.toFixed(1)}시간 · ${group.records.length}개 기록\n${names}`;
+        const summary = document.createElement('div');
+        summary.innerText = `AppID ${group.steamAppId} · ${group.time.toFixed(1)}시간 · ${group.records.length}개 기록`;
+        item.appendChild(summary);
+        group.records.forEach(record => {
+            const row = document.createElement('div');
+            row.className = 'duplicate-steam-report-record';
+            const label = document.createElement('span');
+            label.innerText = `${record.game.title} · ${record.game.startDate || '날짜 없음'}`;
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'duplicate-steam-delete-btn';
+            removeButton.innerText = '이 기록 지우기';
+            removeButton.addEventListener('click', () => deleteSteamDuplicateRecord(record.eventId));
+            row.append(label, removeButton);
+            item.appendChild(row);
+        });
         report.appendChild(item);
     });
+}
+
+function deleteSteamDuplicateRecord(eventId) {
+    const target = localEvents.find(event => event.id === eventId);
+    if (!target) return;
+    const game = target.extendedProps;
+    if (!confirm(`'${game.title}' 기록 (${game.startDate}, ${game.time}시간)을 지울까요?\n이 작업은 이 기기 기록에서만 삭제됩니다.`)) return;
+
+    localEvents = localEvents.filter(event => event.id !== eventId);
+    saveToLocalStorage();
+    refreshUI();
+    findDuplicateSteamRecords();
 }
 
 // 2. 계산기 입력 시 스팀 총 플레이타임 자동 조회
