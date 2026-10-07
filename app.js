@@ -868,3 +868,32 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.id !== 'gameName') { document.getElementById('autocompleteList').style.display = 'none'; }
     });
 });
+// ==========================================
+// 🎮 스팀 연동 계정 로컬 안전 보관 기능
+// ==========================================
+function saveSteamCredentials() {
+    const keyVal = document.getElementById('steamApiKeyInput').value.trim();
+    const idVal = document.getElementById('steamIdInput').value.trim();
+
+    if (!keyVal || !idVal) {
+        alert("API 키와 SteamID64를 모두 입력해 주세요.");
+        return;
+    }
+
+    localStorage.setItem('user_steam_api_key', keyVal);
+    localStorage.setItem('user_steam_id', idVal);
+    alert("스팀 연동 정보가 브라우저에 안전하게 저장되었습니다! 🔒");
+}
+
+// 기존 DOMContentLoaded 이벤트 내부 또는 하단에 배치
+window.addEventListener('DOMContentLoaded', function() {
+    const savedSteamKey = localStorage.getItem('user_steam_api_key');
+    const savedSteamId = localStorage.getItem('user_steam_id');
+
+    if (savedSteamKey && document.getElementById('steamApiKeyInput')) {
+        document.getElementById('steamApiKeyInput').value = savedSteamKey;
+    }
+    if (savedSteamId && document.getElementById('steamIdInput')) {
+        document.getElementById('steamIdInput').value = savedSteamId;
+    }
+});
