@@ -190,7 +190,7 @@ async function bulkLinkSteamGames() {
 
 function findDuplicateSteamRecords() {
     const report = document.getElementById('duplicateSteamReport');
-    const groups = new Map();
+    const recordsByAppId = new Map();
 
     localEvents.forEach(event => {
         const game = event.extendedProps || {};
@@ -198,28 +198,44 @@ function findDuplicateSteamRecords() {
         const time = Number(game.time);
         if (!steamAppId || !Number.isFinite(time)) return;
 
-        const key = `${steamAppId}\u001F${time}`;
-        const group = groups.get(key) || { steamAppId, time, records: [] };
-        group.records.push({ eventId: event.id, game });
-        groups.set(key, group);
+        const records = recordsByAppId.get(steamAppId) || [];
+        records.push({ eventId: event.id, game, time });
+        recordsByAppId.set(steamAppId, records);
     });
 
-    const duplicates = [...groups.values()].filter(group => group.records.length > 1);
+    const duplicates = [];
+    recordsByAppId.forEach((records, steamAppId) => {
+        records.sort((first, second) => first.time - second.time);
+        let group = null;
+        records.forEach(record => {
+            if (!group || record.time - group.minTime > 0.300001) {
+                if (group && group.records.length > 1) duplicates.push(group);
+                group = { steamAppId, minTime: record.time, maxTime: record.time, records: [record] };
+            } else {
+                group.maxTime = record.time;
+                group.records.push(record);
+            }
+        });
+        if (group && group.records.length > 1) duplicates.push(group);
+    });
     report.innerHTML = '';
     report.classList.add('is-visible');
 
     const title = document.createElement('div');
     title.className = 'duplicate-steam-report-title';
     title.innerText = duplicates.length
-        ? `같은 Steam AppID와 플레이 시간이 있는 묶음: ${duplicates.length}개`
-        : '같은 Steam AppID와 플레이 시간이 있는 기록을 찾지 못했습니다.';
+        ? `같은 Steam AppID와 플레이 시간 차이 0.3시간 이내인 묶음: ${duplicates.length}개`
+        : '같은 Steam AppID와 플레이 시간 차이 0.3시간 이내인 기록을 찾지 못했습니다.';
     report.appendChild(title);
 
     duplicates.forEach(group => {
         const item = document.createElement('div');
         item.className = 'duplicate-steam-report-item';
         const summary = document.createElement('div');
-        summary.innerText = `AppID ${group.steamAppId} · ${group.time.toFixed(1)}시간 · ${group.records.length}개 기록`;
+        const timeText = group.minTime === group.maxTime
+            ? `${group.minTime.toFixed(1)}시간`
+            : `${group.minTime.toFixed(1)}~${group.maxTime.toFixed(1)}시간`;
+        summary.innerText = `AppID ${group.steamAppId} · ${timeText} · ${group.records.length}개 기록`;
         item.appendChild(summary);
         group.records.forEach(record => {
             const row = document.createElement('div');
@@ -366,19 +382,11 @@ function syncRecentSteamPlaytime() {
             const steamAppId = String(game.appid || '');
             const currentTotalSteamHours = parseFloat((game.playtime_forever / 60).toFixed(1));
 
-            // 제목보다 Steam AppID 연결을 먼저 사용합니다. 연결되지 않은 같은 제목 기록은 자동으로 연결합니다.
+            // Steam 동기화는 제목이 아니라 Steam AppID가 같은 기록만 합산합니다.
             const appIdRecords = steamAppId
                 ? localEvents.filter(e => String(e.extendedProps.steamAppId || '') === steamAppId)
                 : [];
-            const titleRecords = localEvents.filter(e => e.title && e.title.toLowerCase() === name.toLowerCase());
-            const existingRecords = appIdRecords.length > 0
-                ? [...new Set([...appIdRecords, ...titleRecords.filter(e => !e.extendedProps.steamAppId)])]
-                : titleRecords;
-
-            if (steamAppId && existingRecords.length > 0) {
-                existingRecords.forEach(record => { record.extendedProps.steamAppId = steamAppId; });
-                existingRecords.forEach(record => saveSteamTitleLink(record.title, steamAppId));
-            }
+            const existingRecords = appIdRecords;
             const recordedTotalHours = existingRecords.reduce((sum, e) => sum + e.extendedProps.time, 0);
             const diffHours = parseFloat((currentTotalSteamHours - recordedTotalHours).toFixed(1));
 

@@ -26,6 +26,18 @@ function saveSteamTitleLink(title, steamAppId) {
     localStorage.setItem('steam_title_appid_links', JSON.stringify(links));
 }
 
+function getGameIdentity(gameOrEvent) {
+    const game = gameOrEvent?.extendedProps || gameOrEvent || {};
+    const steamAppId = String(game.steamAppId || '').trim();
+    if (steamAppId) return `steam:${steamAppId}`;
+    return `title:${String(game.title || '').trim().toLocaleLowerCase()}`;
+}
+
+function getSameGameEvents(gameOrEvent) {
+    const identity = getGameIdentity(gameOrEvent);
+    return localEvents.filter(event => getGameIdentity(event) === identity);
+}
+
 function getSmartGameColor(title) {
     let hash = 0;
     for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
@@ -124,9 +136,10 @@ function searchGameTitles(keyword) {
 
 function executeLiveGameSearch() {
     let titleKeyword = document.getElementById('searchTitleInput').value.trim().toLowerCase();
+    let steamAppIdKeyword = document.getElementById('searchSteamAppIdInput').value.trim();
     let dateKeyword = document.getElementById('searchDateInput').value.trim();
 
-    if (titleKeyword || dateKeyword) {
+    if (titleKeyword || steamAppIdKeyword || dateKeyword) {
         document.querySelectorAll('.content-view').forEach(view => view.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('list-view').classList.add('active');
@@ -137,7 +150,7 @@ function executeLiveGameSearch() {
         });
     }
 
-    buildAggregatedCards('list-container', null, titleKeyword, dateKeyword);
+    buildAggregatedCards('list-container', null, titleKeyword, dateKeyword, steamAppIdKeyword);
 }
 
 function isGameInSearchDate(gStart, gEnd, query) {
@@ -165,6 +178,7 @@ function isGameInSearchDate(gStart, gEnd, query) {
 
 function clearSearchFilters() {
     document.getElementById('searchTitleInput').value = '';
+    document.getElementById('searchSteamAppIdInput').value = '';
     document.getElementById('searchDateInput').value = '';
     refreshUI();
 }
@@ -187,7 +201,8 @@ function handleGameSubmit(event) {
     let endingStatusValue = checkEnding ? 'o' : 'x';
 
     if (checkEnding) {
-        let previousEndingsCount = localEvents.filter(e => e.title.toLowerCase() === name.toLowerCase() && (e.extendedProps.isEnding === 'o' || e.extendedProps.isEnding.includes('엔딩'))).length;
+        let submittedGame = { title: name, steamAppId: platform === 'steam' ? getSteamAppIdForTitle(name) : '' };
+        let previousEndingsCount = getSameGameEvents(submittedGame).filter(e => e.extendedProps.isEnding === 'o' || e.extendedProps.isEnding.includes('엔딩')).length;
         if (previousEndingsCount > 0) endingStatusValue = `엔딩 ${previousEndingsCount + 1}`;
     }
 
@@ -195,7 +210,7 @@ function handleGameSubmit(event) {
     let isTimeOnly = !startDate;
 
     if (isTimeOnly) {
-        let existEvents = localEvents.filter(e => e.title.toLowerCase() === name.toLowerCase());
+        let existEvents = getSameGameEvents({ title: name, steamAppId: platform === 'steam' ? getSteamAppIdForTitle(name) : '' });
         if (existEvents.length > 0) {
             let lastEvent = existEvents.reduce((prev, current) => {
                 let prevEnd = prev.extendedProps.rawEndDate || prev.extendedProps.startDate;
@@ -218,7 +233,7 @@ function handleGameSubmit(event) {
         return;
     }
 
-    let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding);
+    let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding, platform === 'steam' ? getSteamAppIdForTitle(name) : '');
     localEvents.push(newGame);
 
     refreshUI();
@@ -237,7 +252,7 @@ function createGameObj(name, start, end, platform, time, endingStatus, memo, rev
     let gameObj = {
         id: uniqueId, title: name, startDate: start, endDate: displayEnd, rawEndDate: end,     
         platform: platform, time: parseFloat(time || 0), isEnding: endingStatus, memo: memo || '', review: review || '',
-        steamAppId: String(steamAppId || getSteamAppIdForTitle(name))
+        steamAppId: String(steamAppId || (String(platform).toLocaleLowerCase() === 'steam' ? getSteamAppIdForTitle(name) : ''))
     };
 
     let eventObj = { id: uniqueId, title: name, start: start, extendedProps: gameObj };
@@ -253,42 +268,44 @@ function createGameObj(name, start, end, platform, time, endingStatus, memo, rev
     return eventObj;
 }
 
-function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter = "", dateFilter = "") {
+function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter = "", dateFilter = "", steamAppIdFilter = "") {
     let container = document.getElementById(targetContainerId);
     container.innerHTML = '';
     let sourceList = localEvents;
     
     if (targetYear) { sourceList = localEvents.filter(evt => evt.extendedProps.startDate.split('-')[0] === targetYear); }
     
-    if (titleFilter || dateFilter) {
+    if (titleFilter || dateFilter || steamAppIdFilter) {
         sourceList = sourceList.filter(evt => {
             let game = evt.extendedProps;
             let matchTitle = titleFilter ? game.title.toLowerCase().includes(titleFilter) : true;
             let matchDate = dateFilter ? isGameInSearchDate(game.startDate, game.rawEndDate || game.startDate, dateFilter) : true;
-            return matchTitle && matchDate;
+            let matchSteamAppId = steamAppIdFilter ? String(game.steamAppId || '').includes(steamAppIdFilter) : true;
+            return matchTitle && matchDate && matchSteamAppId;
         });
     }
 
     if (sourceList.length === 0) { container.innerHTML = '<div style="color:#9ca3af; padding:10px;">기록된 플레이 목록이 없습니다.</div>'; return; }
 
-    let titleTimeMap = {};
-    let titleEndingMap = {};
-    let titlePlatformMap = {}; 
+    let gameSummaries = new Map();
 
     sourceList.forEach(evt => {
         let game = evt.extendedProps;
-        titleTimeMap[game.title] = (titleTimeMap[game.title] || 0) + game.time;
-        if (game.isEnding && (game.isEnding === 'o' || game.isEnding.includes('엔딩'))) { titleEndingMap[game.title] = true; }
-        titlePlatformMap[game.title] = game.platform;
+        let key = getGameIdentity(game);
+        let summary = gameSummaries.get(key) || { title: game.title, time: 0, platform: game.platform, hasEnded: false, eventId: evt.id };
+        summary.time += game.time;
+        if (game.isEnding && (game.isEnding === 'o' || game.isEnding.includes('엔딩'))) summary.hasEnded = true;
+        gameSummaries.set(key, summary);
     });
 
     let timeLabelText = targetYear ? "해당 연도 플레이 시간" : "총 플레이타임";
 
-    for (let title in titleTimeMap) {
-        let aggregatedTime = titleTimeMap[title];
-        let platform = titlePlatformMap[title];
+    for (let summary of gameSummaries.values()) {
+        let title = summary.title;
+        let aggregatedTime = summary.time;
+        let platform = summary.platform;
         let cardColor = determineEventColor({ title: title, platform: platform });
-        let hasEnded = titleEndingMap[title];
+        let hasEnded = summary.hasEnded;
 
         let card = document.createElement('div');
         card.className = 'game-card';
@@ -300,7 +317,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
             <div class="card-title">${title}</div>
             <div class="card-info" style="font-size: 1.1em; margin-top: 10px;">⏱ ${timeLabelText}: <span style="color:#818cf8; font-size:1.2em;">${aggregatedTime.toFixed(1)}</span> 시간</div>
         `;
-        card.addEventListener('click', () => { openDetailModalByTitle(title); });
+        card.addEventListener('click', () => { openDetailModalById(summary.eventId); });
         container.appendChild(card);
     }
 }
@@ -317,19 +334,22 @@ function calculateYearlyReport(targetYear) {
         return;
     }
 
-    let totalTime = 0; let titleTimeMap = {}; let uniqueEndedGamesInYear = new Set(); let latestReviewText = "-"; let maxStartDate = "";
+    let totalTime = 0; let gameTimeMap = new Map(); let uniqueEndedGamesInYear = new Set(); let latestReviewText = "-"; let maxStartDate = "";
 
     filteredEvents.forEach(evt => {
         let game = evt.extendedProps; let t = game.time; totalTime += t;
-        titleTimeMap[game.title] = (titleTimeMap[game.title] || 0) + t;
-        if (game.isEnding && game.isEnding !== 'x') { uniqueEndedGamesInYear.add(game.title.toLowerCase()); }
+        let key = getGameIdentity(game);
+        let summary = gameTimeMap.get(key) || { title: game.title, time: 0 };
+        summary.time += t;
+        gameTimeMap.set(key, summary);
+        if (game.isEnding && game.isEnding !== 'x') { uniqueEndedGamesInYear.add(key); }
         if (game.review && game.review.trim() !== '') {
             if (game.startDate > maxStartDate) { maxStartDate = game.startDate; latestReviewText = `[${game.title}] ${game.review}`; }
         }
     });
 
     let mostPlayedGame = '-'; let mostPlayedTime = 0;
-    for (let title in titleTimeMap) { if (titleTimeMap[title] > mostPlayedTime) { mostPlayedTime = titleTimeMap[title]; mostPlayedGame = title; } }
+    for (let summary of gameTimeMap.values()) { if (summary.time > mostPlayedTime) { mostPlayedTime = summary.time; mostPlayedGame = summary.title; } }
 
     document.getElementById('statTotalTime').innerText = totalTime.toFixed(1) + ' 시간';
     document.getElementById('statEndingCount').innerText = uniqueEndedGamesInYear.size + ' 개';
@@ -365,7 +385,7 @@ function renderTopGames() {
         let startDate = game.startDate || '';
         if (!title || startDate < weekStartText || startDate > todayText) return;
 
-        let key = title.toLocaleLowerCase();
+        let key = getGameIdentity(game);
         let current = gamesByTitle.get(key) || { title: title, time: 0, event: event };
         current.time += Number(game.time) || 0;
         if ((game.rawEndDate || game.startDate || '') >= (current.event.extendedProps.rawEndDate || current.event.extendedProps.startDate || '')) {
@@ -427,8 +447,9 @@ function refreshUI() {
 
     if (calendar) { calendar.refetchEvents(); }
     let activeTitleKeyword = document.getElementById('searchTitleInput').value.trim().toLowerCase();
+    let activeSteamAppIdKeyword = document.getElementById('searchSteamAppIdInput').value.trim();
     let activeDateKeyword = document.getElementById('searchDateInput').value.trim();
-    buildAggregatedCards('list-container', null, activeTitleKeyword, activeDateKeyword);
+    buildAggregatedCards('list-container', null, activeTitleKeyword, activeDateKeyword, activeSteamAppIdKeyword);
     if (yearSelect.value) calculateYearlyReport(yearSelect.value);
     renderTopGames();
 }
@@ -441,7 +462,7 @@ function openDetailModalById(id) {
     currentSelectedEventId = id;
     currentSelectedGameTitle = gameObj.title;
     
-    let sameGames = localEvents.filter(e => e.title.toLowerCase() === gameObj.title.toLowerCase());
+    let sameGames = getSameGameEvents(gameObj);
     let totalAggTime = sameGames.reduce((acc, curr) => acc + curr.extendedProps.time, 0);
     
     document.getElementById('modalInfoGrid').style.display = 'grid';
@@ -464,9 +485,7 @@ function openDetailModalById(id) {
     reviewBox.contentEditable = "true";
     reviewBox.onblur = function() {
         let updatedReviewText = this.innerText.trim();
-        localEvents.forEach(evt => {
-            if (evt.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()) { evt.extendedProps.review = updatedReviewText; }
-        });
+        getSameGameEvents(gameObj).forEach(evt => { evt.extendedProps.review = updatedReviewText; });
         saveToLocalStorage();
     };
 
@@ -552,7 +571,8 @@ function submitInstantMemo() {
     }
     refreshUI();
     saveToLocalStorage();
-    rebuildTimelineUI(localEvents.filter(e => e.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()));
+    let selectedRecord = localEvents.find(event => event.id === currentSelectedEventId);
+    rebuildTimelineUI(selectedRecord ? getSameGameEvents(selectedRecord) : []);
 }
 
 function enableEditMode() {
@@ -682,6 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('searchTitleInput').addEventListener('input', executeLiveGameSearch);
+    document.getElementById('searchSteamAppIdInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('searchDateInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('gameForm').addEventListener('submit', handleGameSubmit);
 
