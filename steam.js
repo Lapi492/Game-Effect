@@ -30,6 +30,39 @@ function getSteamCredentials() {
     };
 }
 
+function extractSteamAppId(value) {
+    const text = String(value || '').trim();
+    const storeUrlMatch = text.match(/store\.steampowered\.com\/app\/(\d+)/i);
+    if (storeUrlMatch) return storeUrlMatch[1];
+    return /^\d+$/.test(text) ? text : '';
+}
+
+function linkCurrentGameToSteam() {
+    const selected = localEvents.find(event => event.id === currentSelectedEventId);
+    if (!selected) return;
+
+    const previousId = selected.extendedProps.steamAppId || '';
+    const entered = prompt(
+        'Steam 상점 주소 또는 AppID 숫자를 붙여 넣어 주세요.\n예: https://store.steampowered.com/app/1086940/',
+        previousId
+    );
+    if (entered === null) return;
+
+    const steamAppId = extractSteamAppId(entered);
+    if (!steamAppId) {
+        alert('Steam 상점 주소 또는 숫자로 된 AppID를 확인해 주세요.');
+        return;
+    }
+
+    const titleKey = selected.title.toLocaleLowerCase();
+    const sameTitleRecords = localEvents.filter(event => event.title && event.title.toLocaleLowerCase() === titleKey);
+    sameTitleRecords.forEach(event => { event.extendedProps.steamAppId = steamAppId; });
+    saveSteamTitleLink(selected.title, steamAppId);
+    saveToLocalStorage();
+    document.getElementById('modalSteamLinkZone').innerText = `연결됨 (AppID: ${steamAppId})`;
+    alert(`'${selected.title}' 기록 ${sameTitleRecords.length}개를 Steam 게임과 연결했습니다. 이제 제목이 달라도 같은 게임으로 동기화합니다.`);
+}
+
 // 2. 계산기 입력 시 스팀 총 플레이타임 자동 조회
 async function autoFillPrevTime(gameNameInput) {
     let trimmed = gameNameInput.trim().toLowerCase();
@@ -143,10 +176,22 @@ function syncRecentSteamPlaytime() {
             }
 
             const name = game.name;
+            const steamAppId = String(game.appid || '');
             const currentTotalSteamHours = parseFloat((game.playtime_forever / 60).toFixed(1));
 
-            // 대시보드에 이미 기록된 누적 시간 확인
-            const existingRecords = localEvents.filter(e => e.title && e.title.toLowerCase() === name.toLowerCase());
+            // 제목보다 Steam AppID 연결을 먼저 사용합니다. 연결되지 않은 같은 제목 기록은 자동으로 연결합니다.
+            const appIdRecords = steamAppId
+                ? localEvents.filter(e => String(e.extendedProps.steamAppId || '') === steamAppId)
+                : [];
+            const titleRecords = localEvents.filter(e => e.title && e.title.toLowerCase() === name.toLowerCase());
+            const existingRecords = appIdRecords.length > 0
+                ? [...new Set([...appIdRecords, ...titleRecords.filter(e => !e.extendedProps.steamAppId)])]
+                : titleRecords;
+
+            if (steamAppId && existingRecords.length > 0) {
+                existingRecords.forEach(record => { record.extendedProps.steamAppId = steamAppId; });
+                existingRecords.forEach(record => saveSteamTitleLink(record.title, steamAppId));
+            }
             const recordedTotalHours = existingRecords.reduce((sum, e) => sum + e.extendedProps.time, 0);
             const diffHours = parseFloat((currentTotalSteamHours - recordedTotalHours).toFixed(1));
 
@@ -168,6 +213,7 @@ function syncRecentSteamPlaytime() {
                     latestRecord.extendedProps.time = parseFloat((latestRecord.extendedProps.time + diffHours).toFixed(1));
                     latestRecord.extendedProps.endDate = todayStr;
                     latestRecord.extendedProps.rawEndDate = todayStr;
+                    latestRecord.extendedProps.steamAppId = steamAppId;
 
                     const nextDay = new Date(todayStr);
                     nextDay.setDate(nextDay.getDate() + 1);
@@ -176,7 +222,7 @@ function syncRecentSteamPlaytime() {
                     sendDataToGoogleSheet(latestRecord.extendedProps);
                 } else {
                     // 2. 새 개별 블록으로 생성
-                    const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션');
+                    const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션', '', false, steamAppId);
                     localEvents.push(newGame);
                     sendDataToGoogleSheet(newGame.extendedProps);
                 }

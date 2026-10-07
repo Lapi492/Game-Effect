@@ -2,7 +2,7 @@
 // 📊 SHEET MODULE: 스프레드시트 수신 및 전송
 // ==========================================
 
-const SPREADSHEET_HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
+const SPREADSHEET_HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평', 'Steam AppID'];
 
 function saveWebAppUrlFromInput() {
     let urlVal = document.getElementById('webAppUrlInput').value.trim();
@@ -65,7 +65,8 @@ function recordToSpreadsheetRow(game) {
         Number(game.time || 0),
         game.isEnding || 'x',
         game.memo || '',
-        game.review || ''
+        game.review || '',
+        game.steamAppId || ''
     ];
 }
 
@@ -133,7 +134,7 @@ function cleanLocalGameData() {
 
         seenRecords.add(key);
         let isEnding = endingStatus !== 'x';
-        cleanedEvents.push(createGameObj(title, startDate, endDate, platform, time, endingStatus, memo, review, isEnding));
+        cleanedEvents.push(createGameObj(title, startDate, endDate, platform, time, endingStatus, memo, review, isEnding, game.steamAppId));
     });
 
     cleanedEvents.sort((a, b) => {
@@ -214,6 +215,7 @@ function parseAndRenderCSV(csvText) {
     let endingIdx = cols.indexOf('엔딩여부') !== -1 ? cols.indexOf('엔딩여부') : cols.indexOf('트로피');
     let memoIdx = cols.indexOf('메모');
     let reviewIdx = cols.indexOf('한줄평');
+    let steamAppIdIdx = cols.indexOf('Steam AppID');
 
     if (nameIdx === -1 || startIdx === -1) return;
 
@@ -229,12 +231,13 @@ function parseAndRenderCSV(csvText) {
         let endingStatus = row[endingIdx] || 'x';
         let memo = row[memoIdx] || '';
         let review = reviewIdx !== -1 ? (row[reviewIdx] || '') : '';
+        let steamAppId = steamAppIdIdx !== -1 ? (row[steamAppIdIdx] || '') : '';
 
         if (!name || !startDate) continue;
         if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
 
         let isEndMark = (endingStatus === 'o' || endingStatus.includes('엔딩') || endingStatus.includes('%'));
-        parsedEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        parsedEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark, steamAppId));
     }
     localEvents = parsedEvents;
     uniqueTitles = [];
@@ -269,6 +272,7 @@ window.handleGoogleSheetResponse = function(rawJson) {
     let endingIdx = cols.indexOf('엔딩여부') !== -1 ? cols.indexOf('엔딩여부') : cols.indexOf('트로피');
     let memoIdx = cols.indexOf('메모');
     let reviewIdx = cols.indexOf('한줄평');
+    let steamAppIdIdx = cols.indexOf('Steam AppID');
 
     if (nameIdx === -1 || startIdx === -1) return;
 
@@ -286,12 +290,13 @@ window.handleGoogleSheetResponse = function(rawJson) {
         let endingStatus = row[endingIdx]?.v ? row[endingIdx].v.toString().trim() : 'x';
         let memo = row[memoIdx]?.v ? row[memoIdx].v.toString().trim() : '';
         let review = reviewIdx !== -1 && row[reviewIdx]?.v ? row[reviewIdx].v.toString().trim() : '';
+        let steamAppId = steamAppIdIdx !== -1 && row[steamAppIdIdx]?.v ? row[steamAppIdIdx].v.toString().trim() : '';
 
         if (!name || !startDate) continue;
         if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
 
         let isEndMark = (endingStatus === 'o' || endingStatus.toString().includes('엔딩') || endingStatus.toString().includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark, steamAppId));
     }
 
     refreshUI();

@@ -12,7 +12,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.7</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.8</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -43,7 +43,7 @@
                 <div><strong>A1</strong><span>이름</span><small>필수</small></div>
                 <div><strong>B1</strong><span>시작일</span><small>필수</small></div>
             </div>
-            <p>권장 전체 헤더: <code>이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평</code></p>
+            <p>권장 전체 헤더: <code>이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평 | Steam AppID</code></p>
             <div class="spreadsheet-preview" aria-label="스프레드시트 입력 예시">
                 <div class="spreadsheet-preview-title">스프레드시트 입력 예시</div>
                 <div class="spreadsheet-preview-grid">
@@ -63,7 +63,7 @@
                 <li>생성된 <code>/exec</code> 주소를 복사해 위의 <strong>기록 저장하기</strong>에 넣습니다.</li>
             </ol>
 
-            <pre class="guide-code"><code>const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
+            <pre class="guide-code"><code>const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평', 'Steam AppID'];
 
 function doPost(e) {
   try {
@@ -92,7 +92,7 @@ function doPost(e) {
 }
 
 function toRow(data) {
-  return [data.title || '', data.startDate || '', data.endDate || '', data.platform || '', Number(data.time || 0), data.isEnding || 'x', data.memo || '', data.review || ''];
+  return [data.title || '', data.startDate || '', data.endDate || '', data.platform || '', Number(data.time || 0), data.isEnding || 'x', data.memo || '', data.review || '', data.steamAppId || ''];
 }
 
 function output(data) {
@@ -261,6 +261,9 @@ function output(data) {
                 
                 <div class="info-label">🕹️ 플랫폼</div>
                 <div class="info-value" id="modalGamePlatformZone"><span id="modalGamePlatform">-</span></div>
+
+                <div class="info-label">🎮 Steam 연결</div>
+                <div class="info-value" id="modalSteamLinkZone">아직 연결하지 않았습니다.</div>
             </div>
             
             <div class="modal-memo-write-zone" id="quickMemoZone">
@@ -281,6 +284,7 @@ function output(data) {
 
             <div class="btn-group">
                 <button class="action-btn edit-btn" id="btnEdit" onclick="enableEditMode()">수정</button>
+                <button class="action-btn steam-link-btn" id="btnSteamLink" onclick="linkCurrentGameToSteam()">Steam 게임 연결</button>
                 <button class="action-btn save-btn" id="btnSave" onclick="saveEditedData()">저장</button>
                 <button class="action-btn delete-btn" id="btnDelete" onclick="deleteCurrentGame()">삭제</button>
             </div>

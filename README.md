@@ -34,8 +34,8 @@
 
 더 많은 내용을 함께 저장하려면 아래처럼 첫 줄을 만드세요.
 
-| 이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| 이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평 | Steam AppID |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ## 새 기록을 구글 시트에 저장하기
 
@@ -48,7 +48,7 @@
 3. 저장 버튼을 누릅니다.
 
 ```javascript
-const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
+const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평', 'Steam AppID'];
 
 function doPost(e) {
   try {
@@ -63,7 +63,8 @@ function doPost(e) {
       Number(data.time || 0),
       data.isEnding || 'x',
       data.memo || '',
-      data.review || ''
+      data.review || '',
+      data.steamAppId || ''
     ]);
 
     return json({ result: 'success' });

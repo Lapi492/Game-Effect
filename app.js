@@ -11,6 +11,21 @@ function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
 }
 
+function getSteamTitleLinks() {
+    try { return JSON.parse(localStorage.getItem('steam_title_appid_links') || '{}'); }
+    catch (error) { return {}; }
+}
+
+function getSteamAppIdForTitle(title) {
+    return getSteamTitleLinks()[String(title || '').trim().toLocaleLowerCase()] || '';
+}
+
+function saveSteamTitleLink(title, steamAppId) {
+    const links = getSteamTitleLinks();
+    links[String(title || '').trim().toLocaleLowerCase()] = String(steamAppId || '');
+    localStorage.setItem('steam_title_appid_links', JSON.stringify(links));
+}
+
 function getSmartGameColor(title) {
     let hash = 0;
     for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
@@ -215,13 +230,14 @@ function handleGameSubmit(event) {
     document.getElementById('autocompleteList').style.display = 'none';
 }
 
-function createGameObj(name, start, end, platform, time, endingStatus, memo, review, isCheckEnding = false) {
+function createGameObj(name, start, end, platform, time, endingStatus, memo, review, isCheckEnding = false, steamAppId = '') {
     let uniqueId = 'evt_' + Math.random().toString(36).substr(2, 9);
     let displayEnd = end === start ? '' : end; 
     
     let gameObj = {
         id: uniqueId, title: name, startDate: start, endDate: displayEnd, rawEndDate: end,     
-        platform: platform, time: parseFloat(time || 0), isEnding: endingStatus, memo: memo || '', review: review || ''
+        platform: platform, time: parseFloat(time || 0), isEnding: endingStatus, memo: memo || '', review: review || '',
+        steamAppId: String(steamAppId || getSteamAppIdForTitle(name))
     };
 
     let eventObj = { id: uniqueId, title: name, start: start, extendedProps: gameObj };
@@ -433,6 +449,9 @@ function openDetailModalById(id) {
     document.getElementById('modalGameEndZone').innerHTML = `<span id="modalGameEnd">${gameObj.endDate ? gameObj.endDate : '진행 중'}</span>`;
     document.getElementById('modalGameTrophyZone').innerHTML = `<span id="modalGameTrophy">${gameObj.isEnding && gameObj.isEnding !== 'x' ? '🏆 엔딩 완료' : '진행 중'}</span>`;
     document.getElementById('modalGamePlatformZone').innerHTML = `<span id="modalGamePlatform">${gameObj.platform}</span>`;
+    document.getElementById('modalSteamLinkZone').innerHTML = gameObj.steamAppId
+        ? `연결됨 (AppID: ${gameObj.steamAppId})`
+        : '아직 연결하지 않았습니다.';
     
     let commonReview = "";
     let foundReviewNode = sameGames.find(e => e.extendedProps.review && e.extendedProps.review.trim() !== "");
@@ -454,6 +473,7 @@ function openDetailModalById(id) {
     document.getElementById('quickMemoZone').style.display = 'block';
     document.getElementById('btnEdit').style.display = 'inline-block';
     document.getElementById('btnDelete').style.display = 'inline-block';
+    document.getElementById('btnSteamLink').style.display = 'inline-block';
     document.getElementById('btnSave').style.display = 'none';
     document.getElementById('gameModal').style.display = "flex";
 }
@@ -536,6 +556,7 @@ function submitInstantMemo() {
 function enableEditMode() {
     let target = localEvents.find(e => e.id === currentSelectedEventId); let gameObj = target.extendedProps;
     document.getElementById('quickMemoZone').style.display = 'none';
+    document.getElementById('btnSteamLink').style.display = 'none';
     document.getElementById('modalGameTitle').innerHTML = `<input type="text" id="editTitle" class="edit-input" value="${gameObj.title}">`;
     document.getElementById('modalGameTimeZone').innerHTML = `<input type="number" step="0.1" id="editTime" class="edit-input" value="${gameObj.time}"> 시간`;
     document.getElementById('modalGameStartZone').innerHTML = `<input type="text" id="editStart" class="edit-input" value="${gameObj.startDate}">`;
