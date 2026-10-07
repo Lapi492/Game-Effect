@@ -63,6 +63,131 @@ function linkCurrentGameToSteam() {
     alert(`'${selected.title}' 기록 ${sameTitleRecords.length}개를 Steam 게임과 연결했습니다. 이제 제목이 달라도 같은 게임으로 동기화합니다.`);
 }
 
+function normalizeSteamTitle(title) {
+    return String(title || '')
+        .toLocaleLowerCase()
+        .normalize('NFKD')
+        .replace(/[™®©]/g, '')
+        .replace(/[\[\]{}()'"`~!@#$%^&*_+=|\\:;,.?\-/]/g, ' ')
+        .replace(/\b(the|game|edition|deluxe|complete|ultimate)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function titleSimilarity(leftTitle, rightTitle) {
+    const left = normalizeSteamTitle(leftTitle);
+    const right = normalizeSteamTitle(rightTitle);
+    if (!left || !right) return 0;
+    if (left === right) return 1;
+
+    const shorter = Math.min(left.length, right.length);
+    const longer = Math.max(left.length, right.length);
+    if (shorter >= 5 && (left.includes(right) || right.includes(left))) return shorter / longer;
+
+    const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= left.length; row++) {
+        let diagonal = previous[0];
+        previous[0] = row;
+        for (let column = 1; column <= right.length; column++) {
+            const before = previous[column];
+            previous[column] = Math.min(
+                previous[column] + 1,
+                previous[column - 1] + 1,
+                diagonal + (left[row - 1] === right[column - 1] ? 0 : 1)
+            );
+            diagonal = before;
+        }
+    }
+    return 1 - previous[right.length] / longer;
+}
+
+function loadSteamOwnedGames() {
+    const creds = getSteamCredentials();
+    const webAppUrl = localStorage.getItem('user_local_web_app_url');
+    if (!creds.apiKey || !creds.steamId) return Promise.reject(new Error('Steam API 키와 SteamID64를 먼저 저장해 주세요.'));
+    if (!webAppUrl) return Promise.reject(new Error('기록 저장하기에 구글 웹 앱 주소를 먼저 저장해 주세요.'));
+
+    return new Promise((resolve, reject) => {
+        const callbackName = `handleSteamLibrary_${Date.now()}`;
+        const cleanup = () => {
+            document.getElementById(callbackName)?.remove();
+            delete window[callbackName];
+        };
+        window[callbackName] = parsed => {
+            cleanup();
+            if (!parsed || parsed.error) reject(new Error(parsed?.error || 'Steam 게임 목록을 불러오지 못했습니다.'));
+            else resolve(parsed.response?.games || []);
+        };
+        const script = document.createElement('script');
+        script.id = callbackName;
+        script.src = `${webAppUrl}?action=steamOwnedGames&key=${encodeURIComponent(creds.apiKey)}&steamid=${encodeURIComponent(creds.steamId)}&callback=${callbackName}`;
+        script.onerror = () => { cleanup(); reject(new Error('구글 웹 앱 통신 중 오류가 발생했습니다.')); };
+        document.body.appendChild(script);
+    });
+}
+
+async function bulkLinkSteamGames() {
+    const button = document.getElementById('bulkSteamLinkButton');
+    const steamRecords = localEvents.filter(event => String(event.extendedProps.platform || '').toLocaleLowerCase() === 'steam');
+    const unlinkedTitles = [...new Set(steamRecords
+        .filter(event => !event.extendedProps.steamAppId)
+        .map(event => event.title)
+        .filter(Boolean))];
+
+    if (unlinkedTitles.length === 0) {
+        alert('연결할 Steam 기록이 없습니다. 이미 모두 연결되어 있거나 플랫폼이 Steam이 아닙니다.');
+        return;
+    }
+    if (!confirm(`연결되지 않은 Steam 게임 ${unlinkedTitles.length}개를 내 Steam 라이브러리와 비교합니다.\n이름이 정확히 같거나 매우 비슷한 게임만 자동 연결합니다. 계속할까요?`)) return;
+
+    button.disabled = true;
+    button.innerText = '⏳ Steam 게임 비교 중...';
+    try {
+        const ownedGames = await loadSteamOwnedGames();
+        let linkedTitles = 0;
+        let linkedRecords = 0;
+
+        unlinkedTitles.forEach(title => {
+            let best = null;
+            let bestScore = -1;
+            let nextBestScore = -1;
+            ownedGames.forEach(game => {
+                const score = titleSimilarity(title, game.name);
+                if (score > bestScore) {
+                    nextBestScore = bestScore;
+                    bestScore = score;
+                    best = { game, score };
+                } else if (score > nextBestScore) {
+                    nextBestScore = score;
+                }
+            });
+            const clearlyBest = best && (best.score === 1 || (best.score >= 0.92 && best.score - nextBestScore >= 0.12));
+            if (!clearlyBest) return;
+
+            const steamAppId = String(best.game.appid || '');
+            if (!steamAppId) return;
+            localEvents.forEach(event => {
+                if (event.title === title && !event.extendedProps.steamAppId) {
+                    event.extendedProps.steamAppId = steamAppId;
+                    linkedRecords++;
+                }
+            });
+            saveSteamTitleLink(title, steamAppId);
+            linkedTitles++;
+        });
+
+        saveToLocalStorage();
+        refreshUI();
+        const remaining = unlinkedTitles.length - linkedTitles;
+        alert(`자동 연결 완료\n\n연결한 게임: ${linkedTitles}개 (${linkedRecords}개 기록)\n확인 필요: ${remaining}개\n\n확인 필요 게임은 상세 화면의 'Steam 게임 연결'에서 상점 주소를 붙여 넣어 연결할 수 있습니다.`);
+    } catch (error) {
+        alert(`자동 연결 실패: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.innerText = '🔗 Steam 기록 한꺼번에 연결';
+    }
+}
+
 // 2. 계산기 입력 시 스팀 총 플레이타임 자동 조회
 async function autoFillPrevTime(gameNameInput) {
     let trimmed = gameNameInput.trim().toLowerCase();

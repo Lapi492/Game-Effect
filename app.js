@@ -426,7 +426,9 @@ function refreshUI() {
     else if (yearsFound.length > 0) yearSelect.value = yearsFound[0];
 
     if (calendar) { calendar.refetchEvents(); }
-    buildAggregatedCards('list-container'); 
+    let activeTitleKeyword = document.getElementById('searchTitleInput').value.trim().toLowerCase();
+    let activeDateKeyword = document.getElementById('searchDateInput').value.trim();
+    buildAggregatedCards('list-container', null, activeTitleKeyword, activeDateKeyword);
     if (yearSelect.value) calculateYearlyReport(yearSelect.value);
     renderTopGames();
 }
