@@ -27,12 +27,13 @@
         </div>
     </div>
 <!-- 🎮 스팀 연동 설정 영역 -->
-<div class="top-action-bar" style="margin-bottom: 12px; gap: 8px;">
-    <span class="url-input-label">🎮 스팀 연동:</span>
-    <input type="password" id="steamApiKeyInput" class="url-input-field" placeholder="Steam Web API Key 입력">
-    <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
-    <button type="button" class="sync-trigger-btn" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
-</div>
+    <div class="top-action-bar" style="margin-bottom: 12px; gap: 8px;">
+        <span class="url-input-label" style="color: #60a5fa;">🎮 스팀 연동:</span>
+        <input type="password" id="steamApiKeyInput" class="url-input-field" placeholder="Steam Web API Key 입력">
+        <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
+        <button type="button" class="sync-trigger-btn" style="background-color: #2563eb;" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
+        <button type="button" class="sync-trigger-btn" style="background-color: #059669;" onclick="syncRecentSteamPlaytime()">🔄 최근 플레이 동기화</button>
+    </div>
 
     <div class="top-action-bar" style="background-color: #23232f; border-color: #818cf8; margin-bottom: 25px;">
         <span class="url-input-label" style="color: #818cf8;">🔍 아카이브 통합 검색:</span>
