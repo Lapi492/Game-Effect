@@ -1,5 +1,5 @@
 // ==========================================
-// 👑 1. 전역 상태 캐시 데이터 저장소
+// 👑 MAIN APP: 상태 캐시, 달력 및 UI 제어
 // ==========================================
 let localEvents = []; 
 let uniqueTitles = []; 
@@ -7,48 +7,10 @@ let currentSelectedEventId = null;
 let currentSelectedGameTitle = ""; 
 let calendar = null;
 
-// 로컬 저장소에 현재 변경 상태를 영구 캐싱하는 엔진
 function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
 }
 
-// 💾 구글 웹 앱 URL 저장
-function saveWebAppUrlFromInput() {
-    let urlVal = document.getElementById('webAppUrlInput').value.trim();
-    if(!urlVal) {
-        alert("연동할 구글 웹 앱 URL 주소를 올바르게 입력해 주세요!");
-        return;
-    }
-    localStorage.setItem('user_local_web_app_url', urlVal);
-    alert("개인용 실시간 양방향 저장 주소가 브라우저에 안전하게 저장되었습니다! 🔒");
-    document.getElementById('webAppUrlInput').value = urlVal;
-}
-
-// 🎮 스팀 연동 계정 로컬 안전 보관 기능
-function saveSteamCredentials() {
-    const keyVal = document.getElementById('steamApiKeyInput').value.trim();
-    const idVal = document.getElementById('steamIdInput').value.trim();
-
-    if (!keyVal || !idVal) {
-        alert("API 키와 SteamID64를 모두 입력해 주세요.");
-        return;
-    }
-
-    localStorage.setItem('user_steam_api_key', keyVal);
-    localStorage.setItem('user_steam_id', idVal);
-    alert("스팀 연동 정보가 브라우저에 안전하게 저장되었습니다! 🔒");
-}
-
-function getSteamCredentials() {
-    return {
-        apiKey: localStorage.getItem('user_steam_api_key') || '',
-        steamId: localStorage.getItem('user_steam_id') || ''
-    };
-}
-
-// ==========================================
-// 🎨 2. 플랫폼 색상 자동 동기화 및 헬퍼 함수
-// ==========================================
 function getSmartGameColor(title) {
     let hash = 0;
     for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
@@ -71,35 +33,6 @@ function determineEventColor(gameObj) {
     return getSmartGameColor(gameObj.title);     
 }
 
-function extractSpreadsheetId(urlText) {
-    if(!urlText) return null;
-    urlText = urlText.trim();
-    if(urlText.includes("/d/e/")) {
-        let parts = urlText.split("/d/e/");
-        if(parts[1]) return parts[1].split("/")[0].split("?")[0].trim();
-    }
-    if(urlText.includes("/d/")) {
-        let parts = urlText.split("/d/");
-        if(parts[1]) return parts[1].split("/")[0].split("?")[0].trim();
-    }
-    return urlText;
-}
-
-function cleanGoogleDate(val) {
-    if (!val) return '';
-    let str = val.toString();
-    if (str.includes('Date(')) {
-        let matches = str.match(/Date\((\d+),(\d+),(\d+)\)/);
-        if (matches) {
-            let y = matches[1];
-            let m = (parseInt(matches[2]) + 1).toString().padStart(2, '0');
-            let d = matches[3].padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        }
-    }
-    return str.trim();
-}
-
 function addDays(dateStr, days) {
     let d = new Date(dateStr);
     d.setDate(d.getDate() + days);
@@ -107,221 +40,43 @@ function addDays(dateStr, days) {
 }
 
 function SmartDateFormatter(inputStr) {
-    if(!inputStr || !inputStr.trim()) return '';
+    if (!inputStr || !inputStr.trim()) return '';
     let clean = inputStr.replace(/[^0-9]/g, '-').replace(/-+/g, '-');
-    if(clean.endsWith('-')) clean = clean.slice(0, -1);
+    if (clean.endsWith('-')) clean = clean.slice(0, -1);
     let parts = clean.split('-');
     let currentYear = new Date().getFullYear();
-    if(parts.length === 2) {
+    if (parts.length === 2) {
         return `${currentYear}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-    } else if(parts.length === 3) {
+    } else if (parts.length === 3) {
         let yy = parts[0].length === 2 ? '20' + parts[0] : parts[0];
         return `${yy}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
     }
     return inputStr;
 }
 
-// ==========================================
-// ⏱️ 3. [옵션 2] 플레이타임 실시간 연동 계산기 시스템
-// ==========================================
-async function autoFillPrevTime(gameNameInput) {
-    let trimmed = gameNameInput.trim().toLowerCase();
-    if(!trimmed) { 
-        document.getElementById('calcPrevTime').value = ''; 
-        return; 
-    }
-    
-    // 1. 기존 시트/기록의 누적 시간 계산
-    let sameGames = localEvents.filter(e => e.title && e.title.toLowerCase() === trimmed);
-    let currentTotal = sameGames.reduce((acc, curr) => acc + curr.extendedProps.time, 0);
-    document.getElementById('calcPrevTime').value = currentTotal > 0 ? currentTotal.toFixed(1) : '0';
-
-    // 2. 스팀 최신 총 플레이 시간 실시간 조회 및 자동 입력
-    const steamCreds = getSteamCredentials();
-    if (steamCreds.apiKey && steamCreds.steamId) {
-        try {
-            const targetSteamUrl = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${steamCreds.apiKey}&steamid=${steamCreds.steamId}&include_appinfo=1&format=json`;
-            const proxyUrls = [
-                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetSteamUrl)}`,
-                `https://corsproxy.io/?${encodeURIComponent(targetSteamUrl)}`
-            ];
-
-            let parsed = null;
-            for (const proxy of proxyUrls) {
-                try {
-                    const res = await fetch(proxy);
-                    if (res.ok) {
-                        parsed = await res.json();
-                        if (parsed && (parsed.response || parsed.contents)) break;
-                    }
-                } catch(e) {}
-            }
-
-            if (parsed && parsed.contents) parsed = JSON.parse(parsed.contents);
-
-            if (parsed && parsed.response && parsed.response.games) {
-                const foundGame = parsed.response.games.find(g => g.name.toLowerCase() === trimmed);
-                if (foundGame) {
-                    const steamHours = (foundGame.playtime_forever / 60).toFixed(1);
-                    document.getElementById('calcCurrTime').value = steamHours;
-                    calculateTimeDifference();
-                }
-            }
-        } catch (e) {
-            console.warn("스팀 플레이타임 자동 조회 생략:", e);
-        }
-    }
-}
-
-function calculateTimeDifference() {
-    let prev = parseFloat(document.getElementById('calcPrevTime').value || 0);
-    let curr = parseFloat(document.getElementById('calcCurrTime').value || 0);
-    if(curr <= prev) {
-        document.getElementById('calcResultBox').innerHTML = `<span style="color:#ef4444; font-weight:bold;">⚠️ 알림: 현재 총 시간(${curr}h)이 이전 누적 시간(${prev}h)보다 커야 새 플레이 시간이 계산됩니다.</span>`;
-        return;
-    }
-    let diff = (curr - prev).toFixed(1);
-    document.getElementById('gameTime').value = diff; 
-    document.getElementById('calcResultBox').innerHTML = `📈 계산 완료: 이전 기록 대비 <span style="color:#10b981; font-weight:bold; font-size:1.1em;">+${diff}</span> 시간 증가 자동 반영 완료!`;
-}
-
-// ==========================================
-// 🚀 [옵션 1] 원클릭 스팀 최근 플레이 실시간 동기화 (CORS 다중 프록시 자동 우회)
-// ==========================================
-async function syncRecentSteamPlaytime() {
-    const creds = getSteamCredentials();
-    if (!creds.apiKey || !creds.steamId) {
-        alert("먼저 스팀 API 키와 SteamID64를 입력하고 저장해 주세요!");
-        return;
-    }
-
-    const syncBtns = document.querySelectorAll('button[onclick*="syncRecentSteamPlaytime"]');
-    syncBtns.forEach(b => { b.disabled = true; b.innerText = "⏳ 스팀 통신 중..."; });
-
-    try {
-        const targetSteamUrl = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${creds.apiKey}&steamid=${creds.steamId}&include_appinfo=1&format=json`;
-        
-        // CORS 차단 우회를 위한 복수 프록시 후보 목록
-        const proxyUrls = [
-            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetSteamUrl)}`,
-            `https://corsproxy.io/?${encodeURIComponent(targetSteamUrl)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetSteamUrl)}`
-        ];
-
-        let parsed = null;
-        let lastError = null;
-
-        for (const proxy of proxyUrls) {
-            try {
-                const res = await fetch(proxy);
-                if (res.ok) {
-                    parsed = await res.json();
-                    if (parsed && (parsed.response || parsed.contents)) break;
-                }
-            } catch (err) {
-                lastError = err;
-            }
-        }
-
-        if (parsed && parsed.contents) {
-            parsed = JSON.parse(parsed.contents);
-        }
-
-        const games = parsed?.response?.games || [];
-        if (!parsed || games.length === 0) {
-            throw lastError || new Error("스팀 라이브러리 데이터를 가져오지 못했습니다. 프로필 공개 설정을 확인하세요.");
-        }
-
-        let updatedCount = 0;
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        for (const game of games) {
-            const name = game.name;
-            const currentTotalSteamHours = parseFloat((game.playtime_forever / 60).toFixed(1));
-
-            // 내 대시보드에 기록되어 있는 이 게임의 총 누적 시간 계산
-            const existingRecords = localEvents.filter(e => e.title && e.title.toLowerCase() === name.toLowerCase());
-            const recordedTotalHours = existingRecords.reduce((sum, e) => sum + e.extendedProps.time, 0);
-
-            // 증가량 계산
-            const diffHours = parseFloat((currentTotalSteamHours - recordedTotalHours).toFixed(1));
-
-            if (diffHours > 0) {
-                let shouldMerge = false;
-                if (existingRecords.length > 0) {
-                    shouldMerge = confirm(
-                        `🎮 [${name}]의 새로운 플레이타임(+${diffHours}시간)이 감지되었습니다!\n\n` +
-                        `[확인]: 기존 플레이 바에 이어서 기간을 연장하고 합산합니다. (연속 바)\n` +
-                        `[취소]: 오늘 날짜(${todayStr}) 기준으로 새로운 개별 바로 등록합니다.`
-                    );
-                }
-
-                if (shouldMerge && existingRecords.length > 0) {
-                    // 1. 기존 가장 최신 기록을 찾아 기간 연장 및 누적 합산
-                    existingRecords.sort((a, b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
-                    const latestRecord = existingRecords[existingRecords.length - 1];
-
-                    latestRecord.extendedProps.time = parseFloat((latestRecord.extendedProps.time + diffHours).toFixed(1));
-                    latestRecord.extendedProps.endDate = todayStr;
-                    latestRecord.extendedProps.rawEndDate = todayStr;
-
-                    const nextDay = new Date(todayStr);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    latestRecord.end = nextDay.toISOString().split('T')[0];
-
-                    sendDataToGoogleSheet(latestRecord.extendedProps);
-                } else {
-                    // 2. 새 개별 블록으로 독립 생성
-                    const newGame = createGameObj(name, todayStr, todayStr, 'steam', diffHours, 'x', '스팀 동기화 세션');
-                    localEvents.push(newGame);
-                    sendDataToGoogleSheet(newGame.extendedProps);
-                }
-                updatedCount++;
-            }
-        }
-
-        if (updatedCount > 0) {
-            refreshUI();
-            saveToLocalStorage();
-            alert(`🎉 총 ${updatedCount}개 스팀 게임의 플레이 기록이 성공적으로 동기화되었습니다!`);
-        } else {
-            alert("이미 모든 스팀 최신 플레이타임이 대시보드에 반영되어 있습니다! (새로 늘어난 시간 없음)");
-        }
-
-    } catch (err) {
-        console.error("스팀 동기화 최종 실패:", err);
-        alert(`스팀 데이터 연동 실패: CORS 프록시 연결 오류입니다.\n잠시 후 다시 시도해 주세요.`);
-    } finally {
-        syncBtns.forEach(b => { b.disabled = false; b.innerText = "🔄 최근 플레이 동기화"; });
-    }
-}
-
-// ==========================================
-// 📅 4. UI 탭 전환 및 검색 자동완성 모듈
-// ==========================================
 function switchTab(viewId) {
     document.querySelectorAll('.content-view').forEach(view => view.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(viewId)) {
+        if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(viewId)) {
             btn.classList.add('active');
         }
     });
     
-    if(viewId === 'calendar-view' && calendar) { 
+    if (viewId === 'calendar-view' && calendar) { 
         calendar.updateSize();
     }
-    if((viewId === 'report-view' || viewId === 'list-view') && localEvents.length > 0) { refreshUI(); }
+    if ((viewId === 'report-view' || viewId === 'list-view') && localEvents.length > 0) { refreshUI(); }
 }
 
 function searchGameTitles(keyword) {
     let listEl = document.getElementById('autocompleteList');
     listEl.innerHTML = '';
-    if(!keyword.trim()) { listEl.style.display = 'none'; return; }
+    if (!keyword.trim()) { listEl.style.display = 'none'; return; }
     let matches = uniqueTitles.filter(title => title.toLowerCase().includes(keyword.trim().toLowerCase()));
-    if(matches.length > 0) {
+    if (matches.length > 0) {
         matches.forEach(match => {
             let item = document.createElement('div');
             item.className = 'autocomplete-item';
@@ -337,9 +92,6 @@ function searchGameTitles(keyword) {
     } else { listEl.style.display = 'none'; }
 }
 
-// ==========================================
-// 🔍 5. 스마트 실시간 통합 다중 필터 검색 엔진
-// ==========================================
 function executeLiveGameSearch() {
     let titleKeyword = document.getElementById('searchTitleInput').value.trim().toLowerCase();
     let dateKeyword = document.getElementById('searchDateInput').value.trim();
@@ -349,7 +101,7 @@ function executeLiveGameSearch() {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById('list-view').classList.add('active');
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            if(btn.getAttribute('onclick') && btn.getAttribute('onclick').includes('list-view')) {
+            if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes('list-view')) {
                 btn.classList.add('active');
             }
         });
@@ -387,180 +139,6 @@ function clearSearchFilters() {
     refreshUI();
 }
 
-// ==========================================
-// 🔗 6. 구글 스프레드시트 수신 엔진
-// ==========================================
-function parseCSVTextToRows(text) {
-    let lines = [];
-    let row = [""], inQuotes = false;
-    for (let i = 0; i < text.length; i++) {
-        let el = text[i];
-        let nextEl = text[i+1];
-        if (el === '"') {
-            if (inQuotes && nextEl === '"') { row[row.length - 1] += '"'; i++; }
-            else { inQuotes = !inQuotes; }
-        } else if (el === ',' && !inQuotes) {
-            row.push("");
-        } else if ((el === '\r' || el === '\n') && !inQuotes) {
-            if (el === '\r' && nextEl === '\n') { i++; }
-            lines.push(row);
-            row = [""];
-        } else {
-            row[row.length - 1] += el;
-        }
-    }
-    if (row.length > 1 || row[0] !== "") lines.push(row);
-    return lines;
-}
-
-function parseAndRenderCSV(csvText) {
-    let allRows = parseCSVTextToRows(csvText);
-    if (allRows.length < 1) return;
-
-    let cols = allRows[0].map(c => c.trim().replace(/^"|"$/g, ''));
-    let nameIdx = cols.indexOf('이름');
-    let startIdx = cols.indexOf('시작일');
-    let endIdx = cols.indexOf('종료일');
-    let platformIdx = cols.indexOf('플랫폼');
-    let timeIdx = cols.indexOf('시간');
-    let endingIdx = cols.indexOf('엔딩여부') !== -1 ? cols.indexOf('엔딩여부') : cols.indexOf('트로피');
-    let memoIdx = cols.indexOf('메모');
-    let reviewIdx = cols.indexOf('한줄평');
-
-    if (nameIdx === -1 || startIdx === -1) return;
-
-    for (let i = 1; i < allRows.length; i++) {
-        let row = allRows[i].map(r => r.trim().replace(/^"|"$/g, ''));
-        if (row.length <= nameIdx || !row[nameIdx]) continue;
-
-        let name = row[nameIdx];
-        let startDate = row[startIdx];
-        let endDate = row[endIdx] || '';
-        let platform = row[platformIdx] || '-';
-        let time = parseFloat(row[timeIdx] || 0);
-        let endingStatus = row[endingIdx] || 'x';
-        let memo = row[memoIdx] || '';
-        let review = reviewIdx !== -1 ? (row[reviewIdx] || '') : '';
-
-        if (!name || !startDate) continue;
-        if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
-
-        let isEndMark = (endingStatus === 'o' || endingStatus.includes('엔딩') || endingStatus.includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
-    }
-    refreshUI();
-    saveToLocalStorage();
-}
-
-window.handleGoogleSheetResponse = function(rawJson) {
-    let oldScript = document.getElementById('googlesheet-jsonp-script');
-    if (oldScript) oldScript.remove();
-
-    if (!rawJson || !rawJson.table) return;
-
-    localEvents = [];
-    uniqueTitles = [];
-
-    let rows = rawJson.table.rows;
-    let cols = rawJson.table.cols.map(c => c.label ? c.label.trim() : '');
-
-    let isHeaderInRows = false;
-    if ((cols.indexOf('이름') === -1 || cols.indexOf('시작일') === -1) && rows.length > 0) {
-        let firstRow = rows[0].c;
-        let tempCols = firstRow.map(cell => cell && (cell.v !== undefined ? cell.v : (cell.f !== undefined ? cell.f : '')).toString().trim());
-        if (tempCols.indexOf('이름') !== -1) { cols = tempCols; isHeaderInRows = true; }
-    }
-
-    let nameIdx = cols.indexOf('이름');
-    let startIdx = cols.indexOf('시작일');
-    let endIdx = cols.indexOf('종료일');
-    let platformIdx = cols.indexOf('플랫폼');
-    let timeIdx = cols.indexOf('시간');
-    let endingIdx = cols.indexOf('엔딩여부') !== -1 ? cols.indexOf('엔딩여부') : cols.indexOf('트로피');
-    let memoIdx = cols.indexOf('메모');
-    let reviewIdx = cols.indexOf('한줄평');
-
-    if (nameIdx === -1 || startIdx === -1) return;
-
-    let startIndex = isHeaderInRows ? 1 : 0;
-
-    for (let i = startIndex; i < rows.length; i++) {
-        let row = rows[i].c;
-        if (!row || !row[nameIdx]) continue;
-
-        let name = row[nameIdx]?.v ? row[nameIdx].v.toString().trim() : '';
-        let startDate = row[startIdx] ? cleanGoogleDate(row[startIdx].f || row[startIdx].v) : '';
-        let endDate = row[endIdx] ? cleanGoogleDate(row[endIdx].f || row[endIdx].v) : '';
-        let platform = row[platformIdx]?.v ? row[platformIdx].v.toString().trim() : '-';
-        let time = row[timeIdx]?.v ? parseFloat(row[timeIdx].v) : 0;
-        let endingStatus = row[endingIdx]?.v ? row[endingIdx].v.toString().trim() : 'x';
-        let memo = row[memoIdx]?.v ? row[memoIdx].v.toString().trim() : '';
-        let review = reviewIdx !== -1 && row[reviewIdx]?.v ? row[reviewIdx].v.toString().trim() : '';
-
-        if (!name || !startDate) continue;
-        if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
-
-        let isEndMark = (endingStatus === 'o' || endingStatus.toString().includes('엔딩') || endingStatus.toString().includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
-    }
-
-    refreshUI();
-    saveToLocalStorage();
-};
-
-function forceFetchSpreadsheetData() {
-    let rawUrlInput = document.getElementById('spreadsheetUrlInput').value.trim();
-    let sheetId = extractSpreadsheetId(rawUrlInput);
-
-    if(!sheetId) {
-        alert("구글 스프레드시트 주소를 복사해 주세요!");
-        return;
-    }
-
-    localStorage.setItem('saved_game_sheet_url', rawUrlInput);
-    localEvents = []; 
-    uniqueTitles = [];
-
-    if (rawUrlInput.includes("2PACX-")) {
-        let csvCleanUrl = rawUrlInput.split("/pubhtml")[0].split("?")[0] + "/pub?output=csv";
-        fetch(csvCleanUrl)
-            .then(response => { if (!response.ok) throw new Error(); return response.text(); })
-            .then(csvText => { parseAndRenderCSV(csvText); })
-            .catch(() => {});
-    } else {
-        let oldScript = document.getElementById('googlesheet-jsonp-script');
-        if (oldScript) oldScript.remove();
-
-        let generatedTargetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:handleGoogleSheetResponse&headers=1`;
-        let script = document.createElement('script');
-        script.id = 'googlesheet-jsonp-script';
-        script.src = generatedTargetUrl;
-        document.body.appendChild(script);
-    }
-}
-
-// 구글 시트로 백그라운드 데이터 실시간 송신 엔진
-function sendDataToGoogleSheet(gameData) {
-    let targetUrl = localStorage.getItem('user_local_web_app_url');
-    if(!targetUrl) return;
-    
-    fetch(targetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(gameData)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if(result.result !== "success") {
-            console.error("구글 시트 전송 실패:", result.message);
-        }
-    })
-    .catch(err => console.error("네트워크 동기화 실패:", err));
-}
-
-// ==========================================
-// ➕ 7. 새 게임 추가 폼 핸들러
-// ==========================================
 function handleGameSubmit(event) {
     event.preventDefault();
     let name = document.getElementById('gameName').value.trim();
@@ -573,9 +151,9 @@ function handleGameSubmit(event) {
     let todayStr = new Date().toISOString().split('T')[0];
     let endingStatusValue = checkEnding ? 'o' : 'x';
 
-    if(checkEnding) {
+    if (checkEnding) {
         let previousEndingsCount = localEvents.filter(e => e.title.toLowerCase() === name.toLowerCase() && (e.extendedProps.isEnding === 'o' || e.extendedProps.isEnding.includes('엔딩'))).length;
-        if(previousEndingsCount > 0) endingStatusValue = `엔딩 ${previousEndingsCount + 1}`;
+        if (previousEndingsCount > 0) endingStatusValue = `엔딩 ${previousEndingsCount + 1}`;
     }
 
     let calculatedEnd = todayStr;
@@ -591,7 +169,7 @@ function handleGameSubmit(event) {
             });
             let baseLastDate = lastEvent.extendedProps.rawEndDate || lastEvent.extendedProps.startDate;
             startDate = addDays(baseLastDate, 1);
-            if(new Date(startDate) > new Date(todayStr)) { startDate = todayStr; }
+            if (new Date(startDate) > new Date(todayStr)) { startDate = todayStr; }
         } else {
             startDate = todayStr;
         }
@@ -639,7 +217,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
     container.innerHTML = '';
     let sourceList = localEvents;
     
-    if(targetYear) { sourceList = localEvents.filter(evt => evt.extendedProps.startDate.split('-')[0] === targetYear); }
+    if (targetYear) { sourceList = localEvents.filter(evt => evt.extendedProps.startDate.split('-')[0] === targetYear); }
     
     if (titleFilter || dateFilter) {
         sourceList = sourceList.filter(evt => {
@@ -650,7 +228,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
         });
     }
 
-    if(sourceList.length === 0) { container.innerHTML = '<div style="color:#9ca3af; padding:10px;">기록된 플레이 목록이 없습니다.</div>'; return; }
+    if (sourceList.length === 0) { container.innerHTML = '<div style="color:#9ca3af; padding:10px;">기록된 플레이 목록이 없습니다.</div>'; return; }
 
     let titleTimeMap = {};
     let titleEndingMap = {};
@@ -665,7 +243,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
 
     let timeLabelText = targetYear ? "해당 연도 플레이 시간" : "총 플레이타임";
 
-    for(let title in titleTimeMap) {
+    for (let title in titleTimeMap) {
         let aggregatedTime = titleTimeMap[title];
         let platform = titlePlatformMap[title];
         let cardColor = determineEventColor({ title: title, platform: platform });
@@ -688,7 +266,7 @@ function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter 
 
 function calculateYearlyReport(targetYear) {
     let filteredEvents = localEvents.filter(evt => evt.extendedProps.startDate.split('-')[0] === targetYear);
-    if(filteredEvents.length === 0) {
+    if (filteredEvents.length === 0) {
         document.getElementById('statTotalTime').innerText = '0 시간';
         document.getElementById('statEndingCount').innerText = '0 개';
         document.getElementById('statMostPlayedGame').innerText = '-';
@@ -703,14 +281,14 @@ function calculateYearlyReport(targetYear) {
     filteredEvents.forEach(evt => {
         let game = evt.extendedProps; let t = game.time; totalTime += t;
         titleTimeMap[game.title] = (titleTimeMap[game.title] || 0) + t;
-        if(game.isEnding && game.isEnding !== 'x') { uniqueEndedGamesInYear.add(game.title.toLowerCase()); }
-        if(game.review && game.review.trim() !== '') {
-            if(game.startDate > maxStartDate) { maxStartDate = game.startDate; latestReviewText = `[${game.title}] ${game.review}`; }
+        if (game.isEnding && game.isEnding !== 'x') { uniqueEndedGamesInYear.add(game.title.toLowerCase()); }
+        if (game.review && game.review.trim() !== '') {
+            if (game.startDate > maxStartDate) { maxStartDate = game.startDate; latestReviewText = `[${game.title}] ${game.review}`; }
         }
     });
 
     let mostPlayedGame = '-'; let mostPlayedTime = 0;
-    for(let title in titleTimeMap) { if(titleTimeMap[title] > mostPlayedTime) { mostPlayedTime = titleTimeMap[title]; mostPlayedGame = title; } }
+    for (let title in titleTimeMap) { if (titleTimeMap[title] > mostPlayedTime) { mostPlayedTime = titleTimeMap[title]; mostPlayedGame = title; } }
 
     document.getElementById('statTotalTime').innerText = totalTime.toFixed(1) + ' 시간';
     document.getElementById('statEndingCount').innerText = uniqueEndedGamesInYear.size + ' 개';
@@ -728,9 +306,9 @@ function refreshUI() {
 
     localEvents.forEach(e => {
         let t = e.title.trim();
-        if(t && !uniqueTitles.includes(t)) uniqueTitles.push(t);
+        if (t && !uniqueTitles.includes(t)) uniqueTitles.push(t);
         let startY = e.extendedProps.startDate.split('-')[0];
-        if(startY && !yearsFound.includes(startY)) yearsFound.push(startY);
+        if (startY && !yearsFound.includes(startY)) yearsFound.push(startY);
     });
 
     yearsFound.sort((a,b) => b - a);
@@ -740,17 +318,14 @@ function refreshUI() {
         yearSelect.appendChild(opt);
     });
 
-    if(currentSelectedYear && yearsFound.includes(currentSelectedYear)) yearSelect.value = currentSelectedYear;
-    else if(yearsFound.length > 0) yearSelect.value = yearsFound[0];
+    if (currentSelectedYear && yearsFound.includes(currentSelectedYear)) yearSelect.value = currentSelectedYear;
+    else if (yearsFound.length > 0) yearSelect.value = yearsFound[0];
 
-    if(calendar) { calendar.refetchEvents(); }
+    if (calendar) { calendar.refetchEvents(); }
     buildAggregatedCards('list-container'); 
-    if(yearSelect.value) calculateYearlyReport(yearSelect.value);
+    if (yearSelect.value) calculateYearlyReport(yearSelect.value);
 }
 
-// ==========================================
-// 💬 9. 팝업 상세창 및 세션 타임라인
-// ==========================================
 function openDetailModalById(id) {
     let targetEvent = localEvents.find(e => e.id === id);
     if (!targetEvent) return;
@@ -772,7 +347,7 @@ function openDetailModalById(id) {
     
     let commonReview = "";
     let foundReviewNode = sameGames.find(e => e.extendedProps.review && e.extendedProps.review.trim() !== "");
-    if(foundReviewNode) commonReview = foundReviewNode.extendedProps.review;
+    if (foundReviewNode) commonReview = foundReviewNode.extendedProps.review;
     
     let reviewBox = document.getElementById('modalGameReviewBox');
     reviewBox.innerText = commonReview ? commonReview : "";
@@ -780,7 +355,7 @@ function openDetailModalById(id) {
     reviewBox.onblur = function() {
         let updatedReviewText = this.innerText.trim();
         localEvents.forEach(evt => {
-            if(evt.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()) { evt.extendedProps.review = updatedReviewText; }
+            if (evt.title.toLowerCase() === currentSelectedGameTitle.toLowerCase()) { evt.extendedProps.review = updatedReviewText; }
         });
         saveToLocalStorage();
     };
@@ -796,7 +371,7 @@ function openDetailModalById(id) {
 
 function openDetailModalByTitle(title) {
     let sameGames = localEvents.filter(e => e.title.toLowerCase() === title.toLowerCase());
-    if(sameGames.length === 0) return;
+    if (sameGames.length === 0) return;
     sameGames.sort((a,b) => new Date(a.extendedProps.startDate) - new Date(b.extendedProps.startDate));
     let latestEvent = sameGames[sameGames.length - 1];
     openDetailModalById(latestEvent.id);
@@ -809,15 +384,15 @@ function rebuildTimelineUI(gamesArray) {
 
     gamesArray.forEach(g => {
         let p = g.extendedProps;
-        if(p.memo && p.memo.trim() !== '') {
-            if(p.memo.startsWith('[{') && p.memo.endsWith('}]')) {
+        if (p.memo && p.memo.trim() !== '') {
+            if (p.memo.startsWith('[{') && p.memo.endsWith('}]')) {
                 try { let parsedArr = JSON.parse(p.memo); allStructuredMemos.push(...parsedArr); } catch(e) { allStructuredMemos.push({ date: p.startDate, text: p.memo }); }
             } else {
                 let lines = p.memo.split('\n');
                 lines.forEach(line => {
-                    if(!line.trim()) return;
+                    if (!line.trim()) return;
                     let match = line.match(/^\[(.*?)\]\s*(.*)$/);
-                    if(match) { allStructuredMemos.push({ date: match[1], text: match[2] }); } else { allStructuredMemos.push({ date: p.startDate, text: line }); }
+                    if (match) { allStructuredMemos.push({ date: match[1], text: match[2] }); } else { allStructuredMemos.push({ date: p.startDate, text: line }); }
                 });
             }
         }
@@ -833,30 +408,30 @@ function rebuildTimelineUI(gamesArray) {
         timelineContainer.appendChild(item);
     });
 
-    if(validMemoCount === 0) { timelineContainer.innerHTML = '<div style="color:#9ca3af; padding:5px; font-size:0.9em;">아직 연동되어 쌓인 세션 메모 기록이 없습니다.</div>'; }
+    if (validMemoCount === 0) { timelineContainer.innerHTML = '<div style="color:#9ca3af; padding:5px; font-size:0.9em;">아직 연동되어 쌓인 세션 메모 기록이 없습니다.</div>'; }
 }
 
 function submitInstantMemo() {
     let memoText = document.getElementById('modalInstantMemoInput').value.trim();
     let dateInput = document.getElementById('modalMemoDateInput').value.trim();
-    if(!memoText) { alert("내용을 타이핑해 주세요!"); return; }
+    if (!memoText) { alert("내용을 타이핑해 주세요!"); return; }
 
     let targetStartDate = ''; let activeRecord = localEvents.find(e => e.id === currentSelectedEventId);
 
-    if(!dateInput) {
-        if(activeRecord) { let p = activeRecord.extendedProps; targetStartDate = p.startDate + (p.endDate ? ` ~ ${p.endDate}` : ''); }
+    if (!dateInput) {
+        if (activeRecord) { let p = activeRecord.extendedProps; targetStartDate = p.startDate + (p.endDate ? ` ~ ${p.endDate}` : ''); }
         else { targetStartDate = new Date().toISOString().split('T')[0]; }
     } else { targetStartDate = dateInput; }
 
-    if(activeRecord) {
+    if (activeRecord) {
         let currentMemoArr = []; let oldMemo = activeRecord.extendedProps.memo ? activeRecord.extendedProps.memo.trim() : '';
-        if(oldMemo.startsWith('[{') && oldMemo.endsWith('}]')) { try { currentMemoArr = JSON.parse(oldMemo); } catch(e){} }
-        else if(oldMemo !== '') {
+        if (oldMemo.startsWith('[{') && oldMemo.endsWith('}]')) { try { currentMemoArr = JSON.parse(oldMemo); } catch(e){} }
+        else if (oldMemo !== '') {
             let lines = oldMemo.split('\n');
             lines.forEach(line => {
-                if(!line.trim()) return;
+                if (!line.trim()) return;
                 let match = line.match(/^\[(.*?)\]\s*(.*)$/);
-                if(match) currentMemoArr.push({ date: match[1], text: match[2] });
+                if (match) currentMemoArr.push({ date: match[1], text: match[2] });
                 else currentMemoArr.push({ date: activeRecord.extendedProps.startDate, text: line });
             });
         }
@@ -899,13 +474,13 @@ function enableEditMode() {
         </select>`;
 
     let rawTextForEdit = gameObj.memo || '';
-    if(rawTextForEdit.startsWith('[{') && rawTextForEdit.endsWith('}]')) { try { let arr = JSON.parse(rawTextForEdit); rawTextForEdit = arr.map(m => `[${m.date}] ${m.text}`).join('\n'); } catch(e){} }
+    if (rawTextForEdit.startsWith('[{') && rawTextForEdit.endsWith('}]')) { try { let arr = JSON.parse(rawTextForEdit); rawTextForEdit = arr.map(m => `[${m.date}] ${m.text}`).join('\n'); } catch(e){} }
     document.getElementById('modalGameMemoTimeline').innerHTML = `<textarea id="editMemo" class="edit-input" style="height:60px; resize:none;">${rawTextForEdit}</textarea>`;
     document.getElementById('btnEdit').style.display = 'none'; document.getElementById('btnSave').style.display = 'inline-block';
 }
 
 function saveEditedData() {
-    let target = localEvents.find(e => e.id === currentSelectedEventId); if(!target) return;
+    let target = localEvents.find(e => e.id === currentSelectedEventId); if (!target) return;
     let newTitle = document.getElementById('editTitle').value.trim(); let newTime = parseFloat(document.getElementById('editTime').value || 0);
     let newStart = SmartDateFormatter(document.getElementById('editStart').value); let newEnd = SmartDateFormatter(document.getElementById('editEnd').value);
 
@@ -919,8 +494,8 @@ function saveEditedData() {
     
     let lines = document.getElementById('editMemo').value.trim().split('\n'); let recompiledArr = [];
     lines.forEach(line => {
-        if(!line.trim()) return; let match = line.match(/^\[(.*?)\]\s*(.*)$/);
-        if(match) recompiledArr.push({ date: match[1], text: match[2] }); else recompiledArr.push({ date: newStart, text: line });
+        if (!line.trim()) return; let match = line.match(/^\[(.*?)\]\s*(.*)$/);
+        if (match) recompiledArr.push({ date: match[1], text: match[2] }); else recompiledArr.push({ date: newStart, text: line });
     });
     target.extendedProps.memo = JSON.stringify(recompiledArr);
     
@@ -930,28 +505,25 @@ function saveEditedData() {
 }
 
 function deleteCurrentGame() { 
-    if(confirm("삭제하시겠습니까?")) { 
+    if (confirm("삭제하시겠습니까?")) { 
         localEvents = localEvents.filter(e => e.id !== currentSelectedEventId); 
         saveToLocalStorage();
         closeGameModal(); 
     } 
 }
-function closeGameModal() { document.getElementById('gameModal').style.display = "none"; if(currentSelectedGameTitle) { refreshUI(); } }
 
-// ==========================================
-// 📅 10. 독립 가동 생명주기 및 이벤트 매핑 리스너
-// ==========================================
+function closeGameModal() { document.getElementById('gameModal').style.display = "none"; if (currentSelectedGameTitle) { refreshUI(); } }
+
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     var modal = document.getElementById('gameModal');
     
     let savedUrl = localStorage.getItem('saved_game_sheet_url');
-    if(savedUrl) { document.getElementById('spreadsheetUrlInput').value = savedUrl; }
+    if (savedUrl) { document.getElementById('spreadsheetUrlInput').value = savedUrl; }
 
     let savedWebAppUrl = localStorage.getItem('user_local_web_app_url');
-    if(savedWebAppUrl) { document.getElementById('webAppUrlInput').value = savedWebAppUrl; }
+    if (savedWebAppUrl) { document.getElementById('webAppUrlInput').value = savedWebAppUrl; }
 
-    // 기존 스팀 인증 정보 복원
     const savedSteamKey = localStorage.getItem('user_steam_api_key');
     const savedSteamId = localStorage.getItem('user_steam_id');
     if (savedSteamKey && document.getElementById('steamApiKeyInput')) {
@@ -982,9 +554,9 @@ document.addEventListener('DOMContentLoaded', function() {
             localEvents = JSON.parse(cachedEvents);
             refreshUI();
         } catch(e) {
-            if(savedUrl) { forceFetchSpreadsheetData(); }
+            if (savedUrl) { forceFetchSpreadsheetData(); }
         }
-    } else if(savedUrl) {
+    } else if (savedUrl) {
         forceFetchSpreadsheetData();
     }
 
