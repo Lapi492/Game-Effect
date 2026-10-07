@@ -188,6 +188,42 @@ async function bulkLinkSteamGames() {
     }
 }
 
+function findDuplicateSteamRecords() {
+    const report = document.getElementById('duplicateSteamReport');
+    const groups = new Map();
+
+    localEvents.forEach(event => {
+        const game = event.extendedProps || {};
+        const steamAppId = String(game.steamAppId || '').trim();
+        const time = Number(game.time);
+        if (!steamAppId || !Number.isFinite(time)) return;
+
+        const key = `${steamAppId}\u001F${time}`;
+        const group = groups.get(key) || { steamAppId, time, records: [] };
+        group.records.push(game);
+        groups.set(key, group);
+    });
+
+    const duplicates = [...groups.values()].filter(group => group.records.length > 1);
+    report.innerHTML = '';
+    report.classList.add('is-visible');
+
+    const title = document.createElement('div');
+    title.className = 'duplicate-steam-report-title';
+    title.innerText = duplicates.length
+        ? `같은 Steam AppID와 플레이 시간이 있는 묶음: ${duplicates.length}개`
+        : '같은 Steam AppID와 플레이 시간이 있는 기록을 찾지 못했습니다.';
+    report.appendChild(title);
+
+    duplicates.forEach(group => {
+        const item = document.createElement('div');
+        item.className = 'duplicate-steam-report-item';
+        const names = [...new Set(group.records.map(record => record.title))].join(', ');
+        item.innerText = `AppID ${group.steamAppId} · ${group.time.toFixed(1)}시간 · ${group.records.length}개 기록\n${names}`;
+        report.appendChild(item);
+    });
+}
+
 // 2. 계산기 입력 시 스팀 총 플레이타임 자동 조회
 async function autoFillPrevTime(gameNameInput) {
     let trimmed = gameNameInput.trim().toLowerCase();

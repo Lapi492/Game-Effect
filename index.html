@@ -12,7 +12,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.10</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.11</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -111,7 +111,9 @@ function output(data) {
         <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
         <button type="button" class="sync-trigger-btn" style="background-color: #2563eb;" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
         <button type="button" id="bulkSteamLinkButton" class="sync-trigger-btn" style="background-color: #7c3aed;" onclick="bulkLinkSteamGames()">🔗 Steam 기록 한꺼번에 연결</button>
+        <button type="button" class="sync-trigger-btn" style="background-color: #d97706;" onclick="findDuplicateSteamRecords()">🔎 중복 기록 찾기 (임시)</button>
         </div>
+        <div id="duplicateSteamReport" class="duplicate-steam-report" aria-live="polite"></div>
     </details>
 
     <div class="top-action-bar" style="background-color: #23232f; border-color: #818cf8; margin-bottom: 25px;">
