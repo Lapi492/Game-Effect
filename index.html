@@ -12,7 +12,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect</h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.3.1</span></h1>
 
     <details class="integration-panel">
         <summary>📂 시트 연동 및 양방향 저장 설정</summary>
@@ -27,6 +27,76 @@
             <input type="text" id="webAppUrlInput" class="url-input-field" style="border-color: #10b981;" placeholder="구글 앱스 스크립트 웹 앱 URL(macros/s/.../exec) 주소를 입력하세요.">
             <button type="button" class="sync-trigger-btn" style="background-color: #10b981;" onclick="saveWebAppUrlFromInput()">🔒 주소 저장하기</button>
         </div>
+        <div class="integration-row integration-row-bordered sheet-tools-row">
+            <span class="url-input-label" style="width: 130px; color: #fbbf24;">🧰 3. 데이터 도구:</span>
+            <button type="button" id="spreadsheetGuideButton" class="sync-trigger-btn template-btn" onclick="toggleSpreadsheetGuide()" aria-expanded="false">📋 시트 최소 조건 안내</button>
+            <button type="button" class="sync-trigger-btn cleanup-btn" onclick="cleanLocalGameData()">🧹 데이터 정리</button>
+            <button type="button" class="sync-trigger-btn export-btn" onclick="downloadRecordsAsCsv()">📥 Excel용 CSV 파일 다운로드</button>
+        </div>
+        <section id="spreadsheetGuide" class="spreadsheet-guide" aria-live="polite">
+            <h2>📋 스프레드시트 최소 조건</h2>
+            <p>첫 번째 행은 항목 이름을 적는 <strong>헤더 행</strong>입니다. 최소한 아래 두 칸은 반드시 필요합니다.</p>
+            <div class="sheet-header-example">
+                <div><strong>A1</strong><span>이름</span><small>필수</small></div>
+                <div><strong>B1</strong><span>시작일</span><small>필수</small></div>
+            </div>
+            <p>권장 전체 헤더: <code>이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평</code></p>
+            <div class="spreadsheet-preview" aria-label="스프레드시트 입력 예시">
+                <div class="spreadsheet-preview-title">스프레드시트 입력 예시</div>
+                <div class="spreadsheet-preview-grid">
+                    <span class="sheet-corner"></span><strong>A</strong><strong>B</strong><strong>C</strong><strong>D</strong>
+                    <strong>1</strong><span class="sheet-required">이름</span><span class="sheet-required">시작일</span><span>종료일</span><span>플랫폼</span>
+                    <strong>2</strong><span>예시 게임</span><span>2026-10-08</span><span>2026-10-08</span><span>steam</span>
+                </div>
+                <small>1행은 항목 이름을 입력하는 헤더 행입니다. 노란색 칸은 필수입니다.</small>
+            </div>
+
+            <h3>Apps Script 작성 방법</h3>
+            <ol>
+                <li>스프레드시트에서 <strong>확장 프로그램 → Apps Script</strong>를 엽니다.</li>
+                <li>기존 코드를 지우고 아래 코드를 붙여 넣은 뒤 저장합니다.</li>
+                <li><strong>배포 → 새 배포 → 웹 앱</strong>을 선택합니다.</li>
+                <li>실행 계정은 <strong>나</strong>, 액세스 권한은 <strong>모든 사용자</strong>로 설정합니다.</li>
+                <li>생성된 <code>/exec</code> 주소를 복사해 위의 <strong>양방향 저장 연동</strong>에 저장합니다.</li>
+            </ol>
+
+            <pre class="guide-code"><code>const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+
+    if (data.action === 'createTemplate') {
+      if (sheet.getLastRow() &gt; 0 || sheet.getLastColumn() &gt; 0) throw new Error('비어 있는 시트에서만 만들 수 있습니다.');
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      return output({ result: 'success' });
+    }
+
+    if (data.action === 'replaceAll') {
+      const records = Array.isArray(data.records) ? data.records : [];
+      sheet.clearContents();
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      if (records.length) sheet.getRange(2, 1, records.length, HEADERS.length).setValues(records.map(toRow));
+      return output({ result: 'success', count: records.length });
+    }
+
+    sheet.appendRow(toRow(data));
+    return output({ result: 'success' });
+  } catch (error) {
+    return output({ result: 'error', message: String(error) });
+  }
+}
+
+function toRow(data) {
+  return [data.title || '', data.startDate || '', data.endDate || '', data.platform || '', Number(data.time || 0), data.isEnding || 'x', data.memo || '', data.review || ''];
+}
+
+function output(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}</code></pre>
+            <p class="guide-note">Steam 최근 플레이 동기화까지 사용하려면 README의 전체 Apps Script 코드에 있는 <code>doGet</code> 함수도 추가하세요.</p>
+        </section>
         </div>
     </details>
 
@@ -37,7 +107,6 @@
         <input type="password" id="steamApiKeyInput" class="url-input-field" placeholder="Steam Web API Key 입력">
         <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
         <button type="button" class="sync-trigger-btn" style="background-color: #2563eb;" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
-        <button type="button" class="sync-trigger-btn" style="background-color: #059669;" onclick="syncRecentSteamPlaytime()">🔄 최근 플레이 동기화</button>
         </div>
     </details>
 
@@ -90,7 +159,10 @@
                         <input type="checkbox" id="gameIsEnding">
                         <label for="gameIsEnding">🏆 엔딩 달성</label>
                     </div>
-                    <button type="submit" class="submit-btn">기록하기</button>
+                    <div class="form-submit-actions">
+                        <button type="submit" class="submit-btn">기록하기</button>
+                        <button type="button" class="sync-trigger-btn steam-sync-btn" onclick="syncRecentSteamPlaytime()">🔄 최근 플레이 동기화</button>
+                    </div>
                 </div>
             </form>
         </div>

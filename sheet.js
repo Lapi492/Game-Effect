@@ -2,6 +2,8 @@
 // 📊 SHEET MODULE: 스프레드시트 수신 및 전송
 // ==========================================
 
+const SPREADSHEET_HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
+
 function saveWebAppUrlFromInput() {
     let urlVal = document.getElementById('webAppUrlInput').value.trim();
     if (!urlVal) {
@@ -11,6 +13,139 @@ function saveWebAppUrlFromInput() {
     localStorage.setItem('user_local_web_app_url', urlVal);
     alert("개인용 실시간 양방향 저장 주소가 브라우저에 안전하게 저장되었습니다! 🔒");
     document.getElementById('webAppUrlInput').value = urlVal;
+}
+
+function toggleSpreadsheetGuide() {
+    let guide = document.getElementById('spreadsheetGuide');
+    let button = document.getElementById('spreadsheetGuideButton');
+    let isVisible = guide.classList.toggle('is-visible');
+    button.setAttribute('aria-expanded', String(isVisible));
+    button.innerText = isVisible ? '📕 시트 최소 조건 안내 닫기' : '📋 시트 최소 조건 안내';
+}
+
+function getSavedWebAppUrl() {
+    let targetUrl = localStorage.getItem('user_local_web_app_url');
+    if (!targetUrl) {
+        alert("먼저 '양방향 저장 연동'에 구글 웹 앱 URL 주소를 저장해 주세요.");
+        return '';
+    }
+    return targetUrl;
+}
+
+function postWebAppData(targetUrl, payload) {
+    return fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+    }).then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+    });
+}
+
+function createSpreadsheetTemplate() {
+    let targetUrl = getSavedWebAppUrl();
+    if (!targetUrl) return;
+    if (!confirm("비어 있는 시트에 기본 헤더를 만듭니다. 이미 데이터가 있는 시트는 변경하지 않습니다. 계속할까요?")) return;
+
+    postWebAppData(targetUrl, { action: 'createTemplate', headers: SPREADSHEET_HEADERS })
+        .then(result => {
+            if (result.result !== 'success') throw new Error(result.message || '시트 기본 틀 생성에 실패했습니다.');
+            alert("시트 기본 틀이 만들어졌습니다. 이제 시트 URL을 입력하고 불러오기를 실행해 주세요.");
+        })
+        .catch(error => alert(`시트 기본 틀 생성 실패: ${error.message}`));
+}
+
+function recordToSpreadsheetRow(game) {
+    return [
+        game.title || '',
+        game.startDate || '',
+        game.endDate || '',
+        game.platform || '',
+        Number(game.time || 0),
+        game.isEnding || 'x',
+        game.memo || '',
+        game.review || ''
+    ];
+}
+
+function createCsvText(records) {
+    let escapeValue = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    let rows = [SPREADSHEET_HEADERS, ...records.map(recordToSpreadsheetRow)];
+    return '\uFEFF' + rows.map(row => row.map(escapeValue).join(',')).join('\r\n');
+}
+
+function downloadRecordsAsCsv() {
+    if (localEvents.length === 0) {
+        alert("다운로드할 기록이 없습니다.");
+        return;
+    }
+
+    let records = localEvents.map(event => ({ ...event.extendedProps }));
+    let csvText = createCsvText(records);
+    let blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
+    let downloadUrl = URL.createObjectURL(blob);
+    let link = document.createElement('a');
+    let today = new Date().toISOString().split('T')[0];
+
+    link.href = downloadUrl;
+    link.download = `game-effect-${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+}
+
+function cleanLocalGameData() {
+    if (localEvents.length === 0) {
+        alert("정리할 기록이 없습니다.");
+        return;
+    }
+    if (!confirm("잘못된 날짜·시간 기록과 완전히 같은 중복 기록을 제거하고 날짜순으로 정리합니다. 계속할까요?")) return;
+
+    let cleanedEvents = [];
+    let seenRecords = new Set();
+    let removedCount = 0;
+
+    localEvents.forEach(event => {
+        let game = event.extendedProps || {};
+        let title = (game.title || event.title || '').trim();
+        let startDate = getValidatedDate(game.startDate || '');
+        let rawEndDate = game.rawEndDate || game.endDate || startDate;
+        let endDate = getValidatedDate(rawEndDate || '');
+        let time = Number(game.time);
+
+        if (!title || !startDate || !endDate || endDate < startDate || !Number.isFinite(time) || time < 0) {
+            removedCount++;
+            return;
+        }
+
+        let platform = (game.platform || '기타').trim() || '기타';
+        let endingStatus = game.isEnding || 'x';
+        let memo = game.memo || '';
+        let review = game.review || '';
+        let key = [title.toLowerCase(), startDate, endDate, platform.toLowerCase(), time, endingStatus, memo, review].join('\u001F');
+
+        if (seenRecords.has(key)) {
+            removedCount++;
+            return;
+        }
+
+        seenRecords.add(key);
+        let isEnding = endingStatus !== 'x';
+        cleanedEvents.push(createGameObj(title, startDate, endDate, platform, time, endingStatus, memo, review, isEnding));
+    });
+
+    cleanedEvents.sort((a, b) => {
+        let dateOrder = a.extendedProps.startDate.localeCompare(b.extendedProps.startDate);
+        return dateOrder || a.title.localeCompare(b.title, 'ko');
+    });
+
+    localEvents = cleanedEvents;
+    uniqueTitles = [];
+    refreshUI();
+    saveToLocalStorage();
+    alert(`데이터 정리가 완료되었습니다. ${removedCount}개 기록을 제거했고, ${cleanedEvents.length}개 기록을 유지했습니다.`);
 }
 
 function extractSpreadsheetId(urlText) {

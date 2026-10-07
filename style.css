@@ -10,6 +10,16 @@ h1 {
     margin-bottom: 20px;
     color: #818cf8;
 }
+.app-version {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 3px 8px;
+    border: 1px solid #4f46e5;
+    border-radius: 999px;
+    color: #c7d2fe;
+    font-size: 0.35em;
+    vertical-align: middle;
+}
 
 .top-action-bar {
     max-width: 1200px;
@@ -81,6 +91,86 @@ h1 {
     margin-top: 10px;
     padding-top: 10px;
 }
+.sheet-tools-row { flex-wrap: wrap; }
+.template-btn { background-color: #4f46e5; }
+.cleanup-btn { background-color: #d97706; }
+.cleanup-btn:hover { background-color: #b45309; }
+.export-btn { background-color: #0891b2; }
+.export-btn:hover { background-color: #0e7490; }
+.spreadsheet-guide {
+    display: none;
+    margin-top: 12px;
+    padding: 18px;
+    background: #20202b;
+    border: 1px solid #4f46e5;
+    border-radius: 8px;
+    color: #d1d5db;
+    line-height: 1.6;
+}
+.spreadsheet-guide.is-visible { display: block; }
+.spreadsheet-guide h2, .spreadsheet-guide h3 { color: #c7d2fe; margin: 0 0 10px; }
+.spreadsheet-guide h3 { margin-top: 20px; font-size: 1em; }
+.spreadsheet-guide p { margin: 8px 0; }
+.spreadsheet-guide code { color: #fcd34d; }
+.sheet-header-example { display: flex; gap: 10px; margin: 12px 0; }
+.sheet-header-example div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #2b2b36;
+    border: 1px solid #3f3f50;
+    border-radius: 6px;
+}
+.sheet-header-example strong { color: #a5b4fc; }
+.sheet-header-example small { color: #10b981; font-weight: bold; }
+.spreadsheet-preview {
+    margin: 16px 0;
+    padding: 14px;
+    background: #181820;
+    border: 1px solid #3f3f50;
+    border-radius: 8px;
+}
+.spreadsheet-preview-title { color: #c7d2fe; font-weight: bold; margin-bottom: 10px; }
+.spreadsheet-preview-grid {
+    display: grid;
+    grid-template-columns: 34px repeat(4, minmax(90px, 1fr));
+    overflow: auto;
+    border-top: 1px solid #4b5563;
+    border-left: 1px solid #4b5563;
+}
+.spreadsheet-preview-grid span,
+.spreadsheet-preview-grid strong {
+    min-width: 90px;
+    padding: 7px 9px;
+    border-right: 1px solid #4b5563;
+    border-bottom: 1px solid #4b5563;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+.spreadsheet-preview-grid strong {
+    min-width: 34px;
+    background: #30303c;
+    color: #cbd5e1;
+    text-align: center;
+}
+.spreadsheet-preview-grid .sheet-corner { min-width: 34px; background: #30303c; }
+.spreadsheet-preview-grid .sheet-required { background: #5b4b1b; color: #fef3c7; font-weight: bold; }
+.spreadsheet-preview small { display: block; margin-top: 9px; color: #9ca3af; }
+.guide-code {
+    max-height: 360px;
+    overflow: auto;
+    padding: 14px;
+    background: #111118;
+    border: 1px solid #3f3f50;
+    border-radius: 6px;
+    color: #d1fae5;
+    font-family: Consolas, monospace;
+    font-size: 0.82em;
+    line-height: 1.5;
+    white-space: pre;
+}
+.guide-note { color: #fcd34d; font-size: 0.9em; }
 
 .flex-forms-wrapper {
     display: flex;
@@ -190,6 +280,19 @@ h1 {
     cursor: pointer; transition: background 0.2s; height: 38px;
 }
 .submit-btn:hover { background-color: #3b31c4; }
+.form-submit-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    grid-column: span 2;
+    min-width: 0;
+}
+.form-submit-actions .submit-btn,
+.form-submit-actions .steam-sync-btn {
+    flex: 1;
+}
+.steam-sync-btn { background-color: #059669; }
+.steam-sync-btn:hover { background-color: #047857; }
 
 .calc-btn {
     background-color: #10b981; color: white; border: none;
@@ -346,4 +449,6 @@ h1 {
     .flex-forms-wrapper { flex-direction: column; }
     .integration-row { flex-direction: column; align-items: stretch; }
     .integration-row .url-input-label { width: auto !important; }
+    .sheet-header-example { flex-direction: column; }
+    .form-submit-actions { grid-column: span 1; flex-direction: column; align-items: stretch; }
 }

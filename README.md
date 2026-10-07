@@ -1,88 +1,127 @@
-🎮 Game Effect - 나만의 게임 로그 아카이브 & 대시보드
-구글 스프레드시트와 실시간으로 연동되어 내가 플레이한 게임들의 역사와 인사이트를 한눈에 보여주는 반응형 웹 대시보드 시스템입니다. 내 컴퓨터를 꺼도 24시간 언제 어디서나 접속하여 게임 로그를 기록하고 트래킹할 수 있습니다.
+# 🎮 Game Effect
 
-🕹️ 간단 사용법
-사이트 상단 연동 바에 본인의 [구글 시트 주소]와 [양방향 저장용 웹 앱 주소]를 최초 1회 입력한 후 저장합니다.
+개인 게임 기록을 달력·목록·연도별 리포트로 관리하는 웹 대시보드입니다. Google 스프레드시트와 연동해 기록을 읽고, 새 기록 또는 전체 기록을 시트에 저장할 수 있습니다.
 
-달력 보기 / 전체 목록 / 연도별 리포트 탭을 자유롭게 넘나들며 아카이브를 확인합니다.
+## 주요 기능
 
-새로운 게임을 클리어했거나 플레이 타임이 늘어났다면 [새 게임 기록 추가] 폼을 통해 기록합니다.
+- 게임 기록 작성, 검색, 수정, 메모 및 한줄평 관리
+- Steam 최근 플레이타임 동기화 (총 플레이 20분 이하 게임 제외)
+- Google 스프레드시트에서 기록 불러오기
+- 현재 기록 전체를 Excel·Google Sheets용 CSV 파일로 다운로드
+- 잘못된 날짜·시간 및 완전히 중복된 기록 정리
+- 최초 사용자를 위한 스프레드시트 기본 헤더 생성
 
-플레이타임 시간 계산기를 이용하면 스팀 등에서 증가한 누적 시간을 계산하여 자동으로 입력 칸을 채워줍니다.
+## 빠른 시작
 
-상단 통합 검색창을 이용하면 게임 제목 실시간 필터링은 물론, 특정 날짜 및 기간 범위(2026-07-01 ~ 2026-07-05)를 역추적하여 플레이 기록을 찾아낼 수 있습니다.
+1. 웹페이지에서 **시트 연동 및 양방향 저장 설정**을 엽니다.
+2. 아래 Apps Script를 스프레드시트에 설정하고 웹 앱 URL을 저장합니다.
+3. 새 시트라면 **시트 최소 조건 안내**에서 필수 헤더를 확인해 첫 행에 입력합니다.
+4. 시트 URL을 넣고 **시트 불러오기**를 누릅니다.
 
-📂 구글 스프레드시트 연동 방법 (Read)
-대시보드가 데이터를 읽어올 수 있도록 내 구글 시트의 규격과 권한을 설정하는 방법입니다.
+## 시트 헤더
 
-1. 시트 헤더(첫 번째 행) 설정하기
-스프레드시트의 첫 번째 행(A1, B1, C1...)에 아래의 제목들을 정확하게 적어주세요. (열의 순서는 상관없지만 글자는 똑같아야 합니다.)
+첫 행은 아래 순서와 이름을 사용합니다.
 
-이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평
+| 이름 | 시작일 | 종료일 | 플랫폼 | 시간 | 엔딩여부 | 메모 | 한줄평 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 
-2. 시트 공유 권한 열기 (보안 게이트웨이 승인)
-구글 스프레드시트 우측 상단의 파란색 [공유] 버튼을 클릭합니다.
+최소 조건은 첫 번째 행의 `이름`, `시작일` 헤더입니다. 전체 헤더를 사용하면 메모와 한줄평 등 모든 정보를 함께 관리할 수 있습니다.
 
-일반 액세스 권한을 제한됨에서 [링크가 있는 모든 사용자]로 변경합니다.
+## Google Apps Script 설정
 
-권한 역할이 [뷰어]로 되어 있는지 확인하고 완료를 누릅니다.
+스프레드시트에서 **확장 프로그램 → Apps Script**를 열고 아래 코드를 붙여 넣습니다.
 
-브라우저 주소창의 시트 URL 주소 전체를 복사하여 웹사이트 1번 칸에 넣고 ⚡ 시트 불러오기를 클릭합니다.
+```javascript
+const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔딩여부', '메모', '한줄평'];
 
-💾 양방향 실시간 저장 주소 만드는 방법 (Write)
-웹사이트에서 입력한 데이터가 내 구글 시트에 진짜로 실시간 자동 저장되도록 데이터 통로(API)를 구축하는 방법입니다.
-
-1. Apps Script에 코드 심기
-연동할 구글 스프레드시트 상단 메뉴에서 [확장 프로그램] ➡️ [Apps Script]를 클릭합니다.
-
-기존에 있던 빈 함수 코드를 싹 지우고, 아래의 전송 처리 엔진 코드를 복사해서 붙여넣습니다.
-
-JavaScript
 function doPost(e) {
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var data = JSON.parse(e.postData.contents);
-    var newRow = new Array(headers.length);
-    
-    for (var i = 0; i < headers.length; i++) {
-      var header = headers[i].toString().trim();
-      if (header === "이름") newRow[i] = data.title;
-      else if (header === "시작일") newRow[i] = data.startDate;
-      else if (header === "종료일") newRow[i] = data.endDate;
-      else if (header === "플랫폼") newRow[i] = data.platform;
-      else if (header === "시간") newRow[i] = Number(data.time);
-      else if (header === "엔딩여부" || header === "트로피") newRow[i] = data.isEnding;
-      else if (header === "메모") newRow[i] = data.memo;
-      else if (header === "한줄평") newRow[i] = data.review;
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+
+    if (data.action === 'createTemplate') {
+      if (sheet.getLastRow() > 0 || sheet.getLastColumn() > 0) {
+        throw new Error('기본 틀은 비어 있는 시트에서만 만들 수 있습니다.');
+      }
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      return jsonOutput({ result: 'success' });
     }
-    
-    sheet.appendRow(newRow);
-    return ContentService.createTextOutput(JSON.stringify({"result":"success"}))
-                         .setMimeType(ContentService.MimeType.JSON);
-                         
-  } catch(error) {
-    return ContentService.createTextOutput(JSON.stringify({"result":"error", "message": error.toString()}))
-                         .setMimeType(ContentService.MimeType.JSON);
+
+    if (data.action === 'replaceAll') {
+      const records = Array.isArray(data.records) ? data.records : [];
+      sheet.clearContents();
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+
+      if (records.length > 0) {
+        const rows = records.map(recordToRow);
+        sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+      }
+      return jsonOutput({ result: 'success', count: records.length });
+    }
+
+    sheet.appendRow(recordToRow(data));
+    return jsonOutput({ result: 'success' });
+  } catch (error) {
+    return jsonOutput({ result: 'error', message: String(error) });
   }
 }
-편집기 상단의 [저장(디스크 아이콘)] 버튼을 누릅니다.
 
-2. 웹 앱(Web App) 배포 및 외부 문 열기
-화면 우측 상단의 파란색 [배포] 버튼을 누르고 [새 배포]를 선택합니다.
+function doGet(e) {
+  const params = e.parameter || {};
+  if (params.action !== 'steamOwnedGames') {
+    return jsonOrJsonp({ error: '지원하지 않는 요청입니다.' }, params.callback);
+  }
 
-왼쪽 위 톱니바퀴를 눌러 유형을 [웹 앱(Web App)]으로 지정합니다.
+  try {
+    if (!params.key || !params.steamid) throw new Error('Steam API 키 또는 SteamID64가 없습니다.');
 
-아래 2가지 설정을 반드시 체크합니다:
+    const steamUrl =
+      'https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/' +
+      '?key=' + encodeURIComponent(params.key) +
+      '&steamid=' + encodeURIComponent(params.steamid) +
+      '&include_appinfo=1&format=json';
+    const response = UrlFetchApp.fetch(steamUrl, { muteHttpExceptions: true });
+    if (response.getResponseCode() !== 200) throw new Error('Steam API 응답 오류: ' + response.getResponseCode());
 
-웹 앱을 다음 사용자 권한으로 실행: 내 구글 계정
+    return jsonOrJsonp(JSON.parse(response.getContentText()), params.callback);
+  } catch (error) {
+    return jsonOrJsonp({ error: String(error) }, params.callback);
+  }
+}
 
-액세스 권한이 있는 사용자: ⚠️ 모든 사용자(Anyone)로 반드시 변경
+function recordToRow(data) {
+  return [
+    data.title || '', data.startDate || '', data.endDate || '', data.platform || '',
+    Number(data.time || 0), data.isEnding || 'x', data.memo || '', data.review || ''
+  ];
+}
 
-하단의 [배포] 버튼을 클릭합니다.
+function jsonOutput(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
-구글 보안 인증 팝업이 뜨면 [액세스 승인] ➡️ 계정 선택 ➡️ [Advanced (고급)] 클릭 ➡️ 하단의 [Go to 제목없는 프로젝트 (unsafe)] 클릭 ➡️ [Allow (허용)]을 차근차근 눌러줍니다.
+function jsonOrJsonp(data, callback) {
+  const json = JSON.stringify(data);
+  if (callback && /^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + json + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
 
-배포가 완료되면 화면에 생성되는 웹 앱 URL 주소를 복사하여 웹사이트 2번 칸에 넣고 🔒 주소 저장하기를 누르면 세팅 끝입니다!
+### 웹 앱 배포
 
-🔒 보안 안내: 이 시스템은 순수 프론트엔드 통신 기반으로 빌드되었습니다. 사용자가 입력한 구글 시트 주소와 웹 앱 고유 URL은 외부 서버에 수집되지 않으며, 사용자 본인의 로컬 브라우저 보안 저장소(LocalStorage)에만 격리되어 안전하게 보관됩니다.
+1. Apps Script에서 **배포 → 새 배포**를 선택합니다.
+2. 유형은 **웹 앱**으로 선택합니다.
+3. 실행 계정은 **나**, 액세스 권한은 **모든 사용자**로 설정합니다.
+4. 배포 후 생성되는 `/exec` URL을 복사합니다.
+5. Game Effect의 `양방향 저장 연동`에 URL을 붙여 넣고 저장합니다.
+
+## 데이터 도구 안내
+
+- **시트 최소 조건 안내**: 필수 헤더와 Apps Script 설정·배포 코드를 앱 안에서 확인합니다.
+- **데이터 정리**: 날짜·시간이 올바르지 않은 기록 및 완전히 같은 중복 기록을 제거하고 날짜순으로 정렬합니다.
+- **Excel용 CSV 파일 다운로드**: 브라우저에 저장된 전체 기록을 한글 호환 CSV 파일로 내려받습니다. Excel 또는 Google Sheets에서 열어 사용할 수 있습니다.
