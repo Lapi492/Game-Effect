@@ -2,10 +2,10 @@
 // 🎮 STEAM MODULE: 스팀 인증 및 플레이타임 동기화
 // ==========================================
 
-const MIN_STEAM_SYNC_PLAYTIME_MINUTES = 20;
+const MIN_STEAM_SYNC_PLAYTIME_MINUTES = 18;
 
 function shouldSyncSteamGame(game) {
-    return Number(game?.playtime_forever) > MIN_STEAM_SYNC_PLAYTIME_MINUTES;
+    return Number(game?.playtime_forever) >= MIN_STEAM_SYNC_PLAYTIME_MINUTES;
 }
 
 // 1. 스팀 인증 정보 로컬 브라우저 보관
@@ -188,84 +188,6 @@ async function bulkLinkSteamGames() {
     }
 }
 
-function findDuplicateSteamRecords() {
-    const report = document.getElementById('duplicateSteamReport');
-    const recordsByAppId = new Map();
-
-    localEvents.forEach(event => {
-        const game = event.extendedProps || {};
-        const steamAppId = String(game.steamAppId || '').trim();
-        const time = Number(game.time);
-        if (!steamAppId || !Number.isFinite(time)) return;
-
-        const records = recordsByAppId.get(steamAppId) || [];
-        records.push({ eventId: event.id, game, time });
-        recordsByAppId.set(steamAppId, records);
-    });
-
-    const duplicates = [];
-    recordsByAppId.forEach((records, steamAppId) => {
-        records.sort((first, second) => first.time - second.time);
-        let group = null;
-        records.forEach(record => {
-            if (!group || record.time - group.minTime > 0.300001) {
-                if (group && group.records.length > 1) duplicates.push(group);
-                group = { steamAppId, minTime: record.time, maxTime: record.time, records: [record] };
-            } else {
-                group.maxTime = record.time;
-                group.records.push(record);
-            }
-        });
-        if (group && group.records.length > 1) duplicates.push(group);
-    });
-    report.innerHTML = '';
-    report.classList.add('is-visible');
-
-    const title = document.createElement('div');
-    title.className = 'duplicate-steam-report-title';
-    title.innerText = duplicates.length
-        ? `같은 Steam AppID와 플레이 시간 차이 0.3시간 이내인 묶음: ${duplicates.length}개`
-        : '같은 Steam AppID와 플레이 시간 차이 0.3시간 이내인 기록을 찾지 못했습니다.';
-    report.appendChild(title);
-
-    duplicates.forEach(group => {
-        const item = document.createElement('div');
-        item.className = 'duplicate-steam-report-item';
-        const summary = document.createElement('div');
-        const timeText = group.minTime === group.maxTime
-            ? `${group.minTime.toFixed(1)}시간`
-            : `${group.minTime.toFixed(1)}~${group.maxTime.toFixed(1)}시간`;
-        summary.innerText = `AppID ${group.steamAppId} · ${timeText} · ${group.records.length}개 기록`;
-        item.appendChild(summary);
-        group.records.forEach(record => {
-            const row = document.createElement('div');
-            row.className = 'duplicate-steam-report-record';
-            const label = document.createElement('span');
-            label.innerText = `${record.game.title} · ${record.game.startDate || '날짜 없음'}`;
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.className = 'duplicate-steam-delete-btn';
-            removeButton.innerText = '이 기록 지우기';
-            removeButton.addEventListener('click', () => deleteSteamDuplicateRecord(record.eventId));
-            row.append(label, removeButton);
-            item.appendChild(row);
-        });
-        report.appendChild(item);
-    });
-}
-
-function deleteSteamDuplicateRecord(eventId) {
-    const target = localEvents.find(event => event.id === eventId);
-    if (!target) return;
-    const game = target.extendedProps;
-    if (!confirm(`'${game.title}' 기록 (${game.startDate}, ${game.time}시간)을 지울까요?\n이 작업은 이 기기 기록에서만 삭제됩니다.`)) return;
-
-    localEvents = localEvents.filter(event => event.id !== eventId);
-    saveToLocalStorage();
-    refreshUI();
-    findDuplicateSteamRecords();
-}
-
 // 2. 계산기 입력 시 스팀 총 플레이타임 자동 조회
 async function autoFillPrevTime(gameNameInput) {
     let trimmed = gameNameInput.trim().toLowerCase();
@@ -428,10 +350,10 @@ function syncRecentSteamPlaytime() {
         if (updatedCount > 0) {
             refreshUI();
             saveToLocalStorage();
-            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 20분 이하 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
+            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 0.3시간 미만 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
             alert(`🎉 총 ${updatedCount}개 스팀 게임의 플레이 기록이 동기화되었습니다!${skippedMessage}`);
         } else {
-            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 20분 이하 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
+            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 0.3시간 미만 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
             alert(`이미 모든 스팀 게임의 최신 플레이타임이 반영되어 있습니다! (새로 늘어난 시간 없음)${skippedMessage}`);
         }
     };

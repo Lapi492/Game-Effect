@@ -6,7 +6,6 @@ let uniqueTitles = [];
 let currentSelectedEventId = null;
 let currentSelectedGameTitle = ""; 
 let calendar = null;
-let showUnlinkedSteamOnly = false;
 
 function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
@@ -151,7 +150,7 @@ function executeLiveGameSearch() {
         });
     }
 
-    buildAggregatedCards('list-container', null, titleKeyword, dateKeyword, steamAppIdKeyword, showUnlinkedSteamOnly);
+    buildAggregatedCards('list-container', null, titleKeyword, dateKeyword, steamAppIdKeyword);
 }
 
 function isGameInSearchDate(gStart, gEnd, query) {
@@ -181,26 +180,6 @@ function clearSearchFilters() {
     document.getElementById('searchTitleInput').value = '';
     document.getElementById('searchSteamAppIdInput').value = '';
     document.getElementById('searchDateInput').value = '';
-    showUnlinkedSteamOnly = false;
-    updateUnlinkedSteamFilterButton();
-    refreshUI();
-}
-
-function updateUnlinkedSteamFilterButton() {
-    const button = document.getElementById('unlinkedSteamFilterButton');
-    if (!button) return;
-    button.innerText = showUnlinkedSteamOnly ? '📋 전체 기록 보기' : '⚠️ Steam ID 미연결만 보기';
-}
-
-function toggleUnlinkedSteamFilter() {
-    showUnlinkedSteamOnly = !showUnlinkedSteamOnly;
-    updateUnlinkedSteamFilterButton();
-    if (showUnlinkedSteamOnly) {
-        document.querySelectorAll('.content-view').forEach(view => view.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(button => button.classList.remove('active'));
-        document.getElementById('list-view').classList.add('active');
-        document.querySelector('.tab-btn[onclick*="list-view"]').classList.add('active');
-    }
     refreshUI();
 }
 
@@ -289,21 +268,20 @@ function createGameObj(name, start, end, platform, time, endingStatus, memo, rev
     return eventObj;
 }
 
-function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter = "", dateFilter = "", steamAppIdFilter = "", unlinkedSteamOnly = false) {
+function buildAggregatedCards(targetContainerId, targetYear = null, titleFilter = "", dateFilter = "", steamAppIdFilter = "") {
     let container = document.getElementById(targetContainerId);
     container.innerHTML = '';
     let sourceList = localEvents;
     
     if (targetYear) { sourceList = localEvents.filter(evt => evt.extendedProps.startDate.split('-')[0] === targetYear); }
     
-    if (titleFilter || dateFilter || steamAppIdFilter || unlinkedSteamOnly) {
+    if (titleFilter || dateFilter || steamAppIdFilter) {
         sourceList = sourceList.filter(evt => {
             let game = evt.extendedProps;
             let matchTitle = titleFilter ? game.title.toLowerCase().includes(titleFilter) : true;
             let matchDate = dateFilter ? isGameInSearchDate(game.startDate, game.rawEndDate || game.startDate, dateFilter) : true;
             let matchSteamAppId = steamAppIdFilter ? String(game.steamAppId || '').includes(steamAppIdFilter) : true;
-            let matchUnlinkedSteam = !unlinkedSteamOnly || (String(game.platform || '').toLocaleLowerCase() === 'steam' && !String(game.steamAppId || '').trim());
-            return matchTitle && matchDate && matchSteamAppId && matchUnlinkedSteam;
+            return matchTitle && matchDate && matchSteamAppId;
         });
     }
 
@@ -471,7 +449,7 @@ function refreshUI() {
     let activeTitleKeyword = document.getElementById('searchTitleInput').value.trim().toLowerCase();
     let activeSteamAppIdKeyword = document.getElementById('searchSteamAppIdInput').value.trim();
     let activeDateKeyword = document.getElementById('searchDateInput').value.trim();
-    buildAggregatedCards('list-container', null, activeTitleKeyword, activeDateKeyword, activeSteamAppIdKeyword, showUnlinkedSteamOnly);
+    buildAggregatedCards('list-container', null, activeTitleKeyword, activeDateKeyword, activeSteamAppIdKeyword);
     if (yearSelect.value) calculateYearlyReport(yearSelect.value);
     renderTopGames();
 }
