@@ -68,6 +68,7 @@ function parseCSVTextToRows(text) {
 function parseAndRenderCSV(csvText) {
     let allRows = parseCSVTextToRows(csvText);
     if (allRows.length < 1) return;
+    let parsedEvents = [];
 
     let cols = allRows[0].map(c => c.trim().replace(/^"|"$/g, ''));
     let nameIdx = cols.indexOf('이름');
@@ -98,8 +99,10 @@ function parseAndRenderCSV(csvText) {
         if (memo === '기록된 메모가 없습니다.' || memo === '-') memo = '';
 
         let isEndMark = (endingStatus === 'o' || endingStatus.includes('엔딩') || endingStatus.includes('%'));
-        localEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
+        parsedEvents.push(createGameObj(name, startDate, endDate, platform, time, endingStatus, memo, review, isEndMark));
     }
+    localEvents = parsedEvents;
+    uniqueTitles = [];
     refreshUI();
     saveToLocalStorage();
 }
@@ -170,15 +173,13 @@ function forceFetchSpreadsheetData() {
     }
 
     localStorage.setItem('saved_game_sheet_url', rawUrlInput);
-    localEvents = []; 
-    uniqueTitles = [];
 
     if (rawUrlInput.includes("2PACX-")) {
         let csvCleanUrl = rawUrlInput.split("/pubhtml")[0].split("?")[0] + "/pub?output=csv";
         fetch(csvCleanUrl)
             .then(response => { if (!response.ok) throw new Error(); return response.text(); })
             .then(csvText => { parseAndRenderCSV(csvText); })
-            .catch(() => {});
+            .catch(() => alert("시트를 불러오지 못했습니다. 기존 기록은 유지됩니다."));
     } else {
         let oldScript = document.getElementById('googlesheet-jsonp-script');
         if (oldScript) oldScript.remove();

@@ -14,26 +14,32 @@
 
     <h1>🎮 Game Effect</h1>
 
-    <div class="top-action-bar" style="flex-direction: column; align-items: stretch; gap: 10px;">
-        <div style="display: flex; gap: 12px; align-items: center;">
+    <details class="integration-panel">
+        <summary>📂 시트 연동 및 양방향 저장 설정</summary>
+        <div class="integration-panel-content">
+        <div class="integration-row">
             <span class="url-input-label" style="width: 130px;">📂 1. 시트 데이터 연동:</span>
             <input type="text" id="spreadsheetUrlInput" class="url-input-field" placeholder="구글 스프레드시트 주소(URL)를 입력하세요.">
             <button type="button" class="sync-trigger-btn" onclick="forceFetchSpreadsheetData()">⚡ 시트 불러오기</button>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center; border-top: 1px dashed #3f3f50; padding-top: 10px;">
+        <div class="integration-row integration-row-bordered">
             <span class="url-input-label" style="width: 130px; color: #10b981;">💾 2. 양방향 저장 연동:</span>
             <input type="text" id="webAppUrlInput" class="url-input-field" style="border-color: #10b981;" placeholder="구글 앱스 스크립트 웹 앱 URL(macros/s/.../exec) 주소를 입력하세요.">
             <button type="button" class="sync-trigger-btn" style="background-color: #10b981;" onclick="saveWebAppUrlFromInput()">🔒 주소 저장하기</button>
         </div>
-    </div>
-<!-- 🎮 스팀 연동 설정 영역 -->
-    <div class="top-action-bar" style="margin-bottom: 12px; gap: 8px;">
+        </div>
+    </details>
+
+    <details class="integration-panel steam-integration-panel">
+        <summary>🎮 Steam 연동 설정</summary>
+        <div class="integration-panel-content integration-row">
         <span class="url-input-label" style="color: #60a5fa;">🎮 스팀 연동:</span>
         <input type="password" id="steamApiKeyInput" class="url-input-field" placeholder="Steam Web API Key 입력">
         <input type="text" id="steamIdInput" class="url-input-field" placeholder="SteamID64 (17자리 숫자)">
         <button type="button" class="sync-trigger-btn" style="background-color: #2563eb;" onclick="saveSteamCredentials()">🔒 스팀 저장</button>
         <button type="button" class="sync-trigger-btn" style="background-color: #059669;" onclick="syncRecentSteamPlaytime()">🔄 최근 플레이 동기화</button>
-    </div>
+        </div>
+    </details>
 
     <div class="top-action-bar" style="background-color: #23232f; border-color: #818cf8; margin-bottom: 25px;">
         <span class="url-input-label" style="color: #818cf8;">🔍 아카이브 통합 검색:</span>

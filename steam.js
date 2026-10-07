@@ -2,6 +2,12 @@
 // 🎮 STEAM MODULE: 스팀 인증 및 플레이타임 동기화
 // ==========================================
 
+const MIN_STEAM_SYNC_PLAYTIME_MINUTES = 20;
+
+function shouldSyncSteamGame(game) {
+    return Number(game?.playtime_forever) > MIN_STEAM_SYNC_PLAYTIME_MINUTES;
+}
+
 // 1. 스팀 인증 정보 로컬 브라우저 보관
 function saveSteamCredentials() {
     const keyVal = document.getElementById('steamApiKeyInput').value.trim();
@@ -127,9 +133,15 @@ function syncRecentSteamPlaytime() {
         }
 
         let updatedCount = 0;
+        let skippedShortPlaytimeCount = 0;
         const todayStr = new Date().toISOString().split('T')[0];
 
         for (const game of games) {
+            if (!shouldSyncSteamGame(game)) {
+                skippedShortPlaytimeCount++;
+                continue;
+            }
+
             const name = game.name;
             const currentTotalSteamHours = parseFloat((game.playtime_forever / 60).toFixed(1));
 
@@ -175,9 +187,11 @@ function syncRecentSteamPlaytime() {
         if (updatedCount > 0) {
             refreshUI();
             saveToLocalStorage();
-            alert(`🎉 총 ${updatedCount}개 스팀 게임의 플레이 기록이 동기화되었습니다!`);
+            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 20분 이하 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
+            alert(`🎉 총 ${updatedCount}개 스팀 게임의 플레이 기록이 동기화되었습니다!${skippedMessage}`);
         } else {
-            alert("이미 모든 스팀 게임의 최신 플레이타임이 반영되어 있습니다! (새로 늘어난 시간 없음)");
+            const skippedMessage = skippedShortPlaytimeCount > 0 ? `\n(총 플레이 20분 이하 게임 ${skippedShortPlaytimeCount}개 제외)` : '';
+            alert(`이미 모든 스팀 게임의 최신 플레이타임이 반영되어 있습니다! (새로 늘어난 시간 없음)${skippedMessage}`);
         }
     };
 

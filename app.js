@@ -54,6 +54,21 @@ function SmartDateFormatter(inputStr) {
     return inputStr;
 }
 
+function getValidatedDate(inputStr) {
+    let formatted = SmartDateFormatter(inputStr);
+    if (!formatted) return '';
+
+    let matches = formatted.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!matches) return null;
+
+    let year = Number(matches[1]);
+    let month = Number(matches[2]);
+    let day = Number(matches[3]);
+    let date = new Date(Date.UTC(year, month - 1, day));
+    let isValid = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    return isValid ? formatted : null;
+}
+
 function switchTab(viewId) {
     document.querySelectorAll('.content-view').forEach(view => view.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -143,10 +158,15 @@ function handleGameSubmit(event) {
     event.preventDefault();
     let name = document.getElementById('gameName').value.trim();
     let inputTime = parseFloat(document.getElementById('gameTime').value);
-    let startDate = SmartDateFormatter(document.getElementById('gameStart').value);
-    let endDate = SmartDateFormatter(document.getElementById('gameEnd').value);
+    let startDate = getValidatedDate(document.getElementById('gameStart').value);
+    let endDate = getValidatedDate(document.getElementById('gameEnd').value);
     let platform = document.getElementById('gamePlatform').value;
     let checkEnding = document.getElementById('gameIsEnding').checked;
+
+    if (startDate === null || endDate === null) {
+        alert("날짜를 올바르게 입력해 주세요. (예: 2026-07-01 또는 07-01)");
+        return;
+    }
 
     let todayStr = new Date().toISOString().split('T')[0];
     let endingStatusValue = checkEnding ? 'o' : 'x';
@@ -176,6 +196,11 @@ function handleGameSubmit(event) {
         calculatedEnd = endDate ? SmartDateFormatter(endDate) : todayStr;
     } else {
         calculatedEnd = endDate ? SmartDateFormatter(endDate) : startDate;
+    }
+
+    if (calculatedEnd < startDate) {
+        alert("종료 날짜는 시작 날짜보다 빠를 수 없습니다.");
+        return;
     }
 
     let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding);
@@ -482,7 +507,16 @@ function enableEditMode() {
 function saveEditedData() {
     let target = localEvents.find(e => e.id === currentSelectedEventId); if (!target) return;
     let newTitle = document.getElementById('editTitle').value.trim(); let newTime = parseFloat(document.getElementById('editTime').value || 0);
-    let newStart = SmartDateFormatter(document.getElementById('editStart').value); let newEnd = SmartDateFormatter(document.getElementById('editEnd').value);
+    let newStart = getValidatedDate(document.getElementById('editStart').value); let newEnd = getValidatedDate(document.getElementById('editEnd').value);
+
+    if (!newTitle || !Number.isFinite(newTime) || newStart === null || !newStart || newEnd === null) {
+        alert("게임 이름, 플레이 시간, 시작 날짜을 올바르게 입력해 주세요.");
+        return;
+    }
+    if (newEnd && newEnd < newStart) {
+        alert("종료 날짜는 시작 날짜보다 빠를 수 없습니다.");
+        return;
+    }
 
     target.title = newTitle; target.start = newStart;
     let calcEnd = new Date(newEnd ? newEnd : newStart); calcEnd.setDate(calcEnd.getDate() + 1);
