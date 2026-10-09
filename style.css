@@ -108,6 +108,23 @@ h1 {
 .cleanup-btn:hover { background-color: #b45309; }
 .export-btn { background-color: #0891b2; }
 .export-btn:hover { background-color: #0e7490; }
+.xlsx-export-btn { background-color: #15803d; }
+.xlsx-export-btn:hover { background-color: #166534; }
+.export-file-help {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+.export-file-help > strong { color: #93c5fd; }
+.export-file-help ul { margin: 6px 0 0; padding-left: 20px; }
+.export-file-help li + li { margin-top: 4px; }
+.export-file-help li strong { color: #fcd34d; }
+.export-file-help code { color: #bbf7d0; }
 .spreadsheet-guide {
     display: none;
     margin-top: 12px;

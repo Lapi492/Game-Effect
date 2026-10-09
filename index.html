@@ -7,12 +7,13 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.27</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.32</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -34,12 +35,20 @@
             <span class="url-input-label" style="width: 130px; color: #fbbf24;">🧰 3. 기록 도구:</span>
             <button type="button" id="spreadsheetGuideButton" class="sync-trigger-btn template-btn" onclick="toggleSpreadsheetGuide()" aria-expanded="false">📋 처음 설정하기</button>
             <button type="button" class="sync-trigger-btn cleanup-btn" onclick="cleanLocalGameData()">🧹 기록 정리</button>
-            <button type="button" class="sync-trigger-btn export-btn" onclick="downloadRecordsAsCsv()">📥 엑셀 파일로 저장</button>
+            <button type="button" class="sync-trigger-btn export-btn" onclick="downloadRecordsAsCsv()">📄 CSV로 저장</button>
+            <button type="button" class="sync-trigger-btn export-btn xlsx-export-btn" onclick="downloadRecordsAsXlsx()">📊 Excel로 저장</button>
         </div>
         <section id="spreadsheetGuide" class="spreadsheet-guide" aria-live="polite">
             <h2>📋 처음 연결하기</h2>
-            <p>첫 번째 줄에는 항목 이름을 적습니다. 최소한 아래 두 칸은 꼭 필요합니다.</p>
-            <p class="guide-note">시트 작성이 어렵다면 <strong>엑셀 파일로 저장</strong>을 눌러 기본 틀 파일을 먼저 받은 뒤, Excel 또는 Google Sheets에서 열어 사용하세요.</p>
+            <p>기록은 시작한 날의 연도별 탭(예: 2026)에 자동 저장됩니다. 첫 번째 줄에는 항목 이름을 적습니다. 최소한 아래 두 칸은 꼭 필요합니다.</p>
+            <p class="guide-note">시트 작성이 어렵다면 <strong>CSV로 저장</strong> 또는 <strong>Excel로 저장</strong>을 눌러 기본 틀 파일을 먼저 받은 뒤, Excel 또는 Google Sheets에서 열어 사용하세요.</p>
+            <div class="export-file-help">
+                <strong>저장 파일 차이</strong>
+                <ul>
+                    <li><strong>CSV:</strong> 가볍고 단순한 한 장짜리 파일입니다. 다른 서비스에 기록을 옮길 때 편합니다.</li>
+                    <li><strong>Excel:</strong> 시작일 연도별 탭이 나뉜 <code>.xlsx</code> 파일입니다. Excel에서 계속 정리할 때 편합니다.</li>
+                </ul>
+            </div>
             <div class="sheet-header-example">
                 <div><strong>A1</strong><span>이름</span><small>필수</small></div>
                 <div><strong>B1</strong><span>시작일</span><small>필수</small></div>
@@ -71,27 +80,40 @@
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
 
     if (data.action === 'createTemplate') {
-      if (sheet.getLastRow() &gt; 0 || sheet.getLastColumn() &gt; 0) throw new Error('비어 있는 시트에서만 만들 수 있습니다.');
-      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      const sheet = getYearSheet(new Date().getFullYear());
       return output({ result: 'success' });
     }
 
     if (data.action === 'replaceAll') {
       const records = Array.isArray(data.records) ? data.records : [];
+      const sheet = getYearSheet(new Date().getFullYear());
       sheet.clearContents();
       sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
       if (records.length) sheet.getRange(2, 1, records.length, HEADERS.length).setValues(records.map(toRow));
       return output({ result: 'success', count: records.length });
     }
 
+    const sheet = getYearSheet(getYear(data.startDate));
     sheet.appendRow(toRow(data));
     return output({ result: 'success' });
   } catch (error) {
     return output({ result: 'error', message: String(error) });
   }
+}
+
+function getYear(dateText) {
+  const match = String(dateText || '').match(/^(\d{4})/);
+  return match ? match[1] : String(new Date().getFullYear());
+}
+
+function getYearSheet(year) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const name = String(year);
+  const sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  return sheet;
 }
 
 function toRow(data) {
@@ -100,6 +122,7 @@ function toRow(data) {
 
 function doGet(e) {
   const p = e.parameter || {};
+  if (p.action === 'gameRecords') return jsonp({ result: 'success', records: getAllRecords() }, p.callback);
   if (p.action !== 'steamOwnedGames') return jsonp({ error: '잘못된 요청입니다.' }, p.callback);
 
   try {
@@ -115,6 +138,27 @@ function doGet(e) {
   }
 }
 
+function getAllRecords() {
+  const records = [];
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sheet => {
+    const values = sheet.getDataRange().getValues();
+    if (values.length &lt; 2) return;
+    const headers = values[0].map(String);
+    const column = name => headers.indexOf(name);
+    const value = (row, name) => {
+      const index = column(name);
+      const item = index &gt; -1 ? row[index] : '';
+      return item instanceof Date ? Utilities.formatDate(item, Session.getScriptTimeZone(), 'yyyy-MM-dd') : item;
+    };
+    values.slice(1).forEach(row => records.push({
+      title: value(row, '이름'), startDate: value(row, '시작일'), endDate: value(row, '종료일'),
+      platform: value(row, '플랫폼'), time: value(row, '시간'), isEnding: value(row, '엔딩여부'),
+      memo: value(row, '메모'), review: value(row, '한줄평'), steamAppId: value(row, 'Steam AppID'), steamTotal: value(row, 'Steam 누적시간')
+    }));
+  });
+  return records;
+}
+
 function jsonp(data, callback) {
   const text = JSON.stringify(data);
   if (callback &amp;&amp; /^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
@@ -128,7 +172,7 @@ function output(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }</code></pre>
             </details>
-            <p class="guide-note">위 코드를 모두 붙여 넣고 새 배포하면, 구글 시트 저장과 Steam 기록 가져오기를 함께 사용할 수 있습니다.</p>
+            <p class="guide-note">위 코드를 모두 붙여 넣고 새 배포하면, 구글 시트 저장·모든 연도 기록 가져오기·Steam 기록 가져오기를 함께 사용할 수 있습니다.</p>
         </section>
         </div>
     </details>
@@ -375,6 +419,7 @@ function output(data) {
                 <ul>
                     <li>기록을 추가한 뒤 새로고침해도 기록이 남아 있으면 정상 저장된 것입니다.</li>
                     <li>저장된 기록은 현재 사용하는 이 브라우저에 보관됩니다. 다른 기기나 다른 브라우저에서는 자동으로 보이지 않습니다.</li>
+                    <li><strong>다른 브라우저에서 불러오기:</strong> 구글 시트에 기록을 저장한 뒤, 다른 브라우저에서 같은 시트 주소를 넣고 <strong>기록 가져오기</strong>를 누르면 됩니다.</li>
                 </ul>
             </section>
 

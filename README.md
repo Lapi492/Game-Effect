@@ -9,8 +9,8 @@
 - 달력, 모든 기록, 연도별 요약 보기
 - 최근 7일에 시작한 게임 중 플레이 시간이 많은 게임 10개 보기
 - Steam 플레이 시간 가져오기
-- 구글 시트에서 기록 가져오기
-- 기록을 엑셀 파일(CSV)로 저장하기
+- 구글 시트에서 모든 연도 기록 가져오기
+- CSV 또는 시작일 연도별 탭 Excel 파일(.xlsx) 저장하기
 - 잘못되거나 똑같이 겹친 기록 정리하기
 
 ## 처음 사용하기
@@ -27,6 +27,8 @@
 2. `기록 가져오기` 칸에 구글 스프레드시트 주소를 넣습니다.
 3. **기록 가져오기**를 누릅니다.
 
+기록은 시작한 날의 연도별 탭(예: `2026`)에 자동으로 저장됩니다. 불러올 때는 모든 연도 탭을 함께 읽습니다.
+
 시트의 첫 번째 줄에는 아래 항목이 필요합니다.
 
 | 이름 | 시작일 |
@@ -41,7 +43,7 @@
 
 게임을 기록할 때마다 구글 시트에도 자동으로 추가하고 싶다면 아래 설정을 한 번만 하면 됩니다.
 
-시트를 직접 만들기 어렵다면 웹페이지의 **엑셀 파일로 저장**을 누르세요. 기록이 없어도 항목 이름이 들어간 기본 틀 CSV 파일을 받을 수 있고, Excel 또는 Google Sheets에서 열 수 있습니다.
+시트를 직접 만들기 어렵다면 웹페이지의 **CSV로 저장** 또는 **Excel로 저장**을 누르세요. CSV는 가볍고 한 장짜리라 다른 서비스로 옮길 때 편합니다. Excel 파일은 시작일 연도에 따라 탭이 나뉘어 Excel에서 계속 정리할 때 편합니다.
 
 ### 연결 코드 넣기
 
@@ -55,7 +57,7 @@ const HEADERS = ['이름', '시작일', '종료일', '플랫폼', '시간', '엔
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    const sheet = getYearSheet(getYear(data.startDate));
 
     sheet.appendRow([
       data.title || '',
@@ -76,8 +78,22 @@ function doPost(e) {
   }
 }
 
+function getYear(dateText) {
+  const match = String(dateText || '').match(/^(\d{4})/);
+  return match ? match[1] : String(new Date().getFullYear());
+}
+
+function getYearSheet(year) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const name = String(year);
+  const sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+  if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  return sheet;
+}
+
 function doGet(e) {
   const p = e.parameter || {};
+  if (p.action === 'gameRecords') return jsonp({ result: 'success', records: getAllRecords() }, p.callback);
   if (p.action !== 'steamOwnedGames') return jsonp({ error: '잘못된 요청입니다.' }, p.callback);
 
   try {
@@ -91,6 +107,26 @@ function doGet(e) {
   } catch (error) {
     return jsonp({ error: String(error) }, p.callback);
   }
+}
+
+function getAllRecords() {
+  const records = [];
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sheet => {
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return;
+    const headers = values[0].map(String);
+    const value = (row, name) => {
+      const index = headers.indexOf(name);
+      const item = index > -1 ? row[index] : '';
+      return item instanceof Date ? Utilities.formatDate(item, Session.getScriptTimeZone(), 'yyyy-MM-dd') : item;
+    };
+    values.slice(1).forEach(row => records.push({
+      title: value(row, '이름'), startDate: value(row, '시작일'), endDate: value(row, '종료일'),
+      platform: value(row, '플랫폼'), time: value(row, '시간'), isEnding: value(row, '엔딩여부'),
+      memo: value(row, '메모'), review: value(row, '한줄평'), steamAppId: value(row, 'Steam AppID'), steamTotal: value(row, 'Steam 누적시간')
+    }));
+  });
+  return records;
 }
 
 function json(data) {
@@ -120,7 +156,8 @@ function jsonp(data, callback) {
 
 - **처음 설정하기**: 시트 첫 줄에 무엇을 적는지와 연결 코드를 확인합니다.
 - **기록 정리**: 날짜나 시간이 잘못된 기록, 완전히 같은 기록을 지웁니다.
-- **엑셀 파일로 저장**: 현재 기록을 CSV 파일로 내려받습니다. Excel 또는 Google Sheets에서 열 수 있습니다.
+- **CSV로 저장**: 현재 기록을 한 장짜리 CSV 파일로 내려받습니다.
+- **Excel로 저장**: 현재 기록을 시작일 연도별 탭으로 나눈 Excel 파일로 내려받습니다.
 
 ## Steam 연결하기
 

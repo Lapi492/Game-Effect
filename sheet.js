@@ -78,6 +78,8 @@ function createCsvText(records) {
 }
 
 function downloadRecordsAsCsv() {
+    if (!confirm('CSV 파일로 저장합니다.\n\nCSV: 가볍고 단순한 한 장짜리 파일입니다. 다른 서비스에 기록을 옮길 때 편합니다.\nExcel: 시작일 연도별 탭이 나뉜 .xlsx 파일입니다. Excel에서 계속 정리할 때 편합니다.\n\nCSV 파일을 저장할까요?')) return;
+
     let records = localEvents.map(event => ({ ...event.extendedProps }));
     let csvText = createCsvText(records);
     let blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
@@ -91,6 +93,41 @@ function downloadRecordsAsCsv() {
     link.click();
     link.remove();
     URL.revokeObjectURL(downloadUrl);
+}
+
+function downloadRecordsAsXlsx() {
+    if (!confirm('Excel 파일로 저장합니다.\n\nCSV: 가볍고 단순한 한 장짜리 파일입니다. 다른 서비스에 기록을 옮길 때 편합니다.\nExcel: 시작일 연도별 탭이 나뉜 .xlsx 파일입니다. Excel에서 계속 정리할 때 편합니다.\n\nExcel 파일을 저장할까요?')) return;
+
+    if (!window.XLSX) {
+        alert('엑셀 파일 기능을 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.');
+        return;
+    }
+
+    let recordsByYear = new Map();
+    localEvents.forEach(event => {
+        let record = { ...event.extendedProps };
+        let match = String(record.startDate || '').match(/^(\d{4})/);
+        let year = match ? match[1] : '날짜 없음';
+        let records = recordsByYear.get(year) || [];
+        records.push(record);
+        recordsByYear.set(year, records);
+    });
+
+    if (recordsByYear.size === 0) recordsByYear.set('기록 없음', []);
+
+    let workbook = XLSX.utils.book_new();
+    [...recordsByYear.keys()].sort().forEach(year => {
+        let records = recordsByYear.get(year).sort((left, right) => String(left.startDate || '').localeCompare(String(right.startDate || '')));
+        let worksheet = XLSX.utils.aoa_to_sheet([SPREADSHEET_HEADERS, ...records.map(recordToSpreadsheetRow)]);
+        worksheet['!cols'] = [
+            { wch: 28 }, { wch: 13 }, { wch: 13 }, { wch: 16 }, { wch: 10 },
+            { wch: 12 }, { wch: 36 }, { wch: 30 }, { wch: 14 }, { wch: 16 }
+        ];
+        XLSX.utils.book_append_sheet(workbook, worksheet, year);
+    });
+
+    let today = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `game-effect-${today}.xlsx`);
 }
 
 function cleanLocalGameData() {
@@ -305,6 +342,44 @@ window.handleGoogleSheetResponse = function(rawJson) {
     saveToLocalStorage();
 };
 
+window.handleGameRecordsResponse = function(payload) {
+    let oldScript = document.getElementById('game-records-jsonp-script');
+    if (oldScript) oldScript.remove();
+    if (!payload || payload.result !== 'success' || !Array.isArray(payload.records)) {
+        alert(`시트를 불러오지 못했습니다. ${payload?.message || '기존 기록은 유지됩니다.'}`);
+        return;
+    }
+
+    localEvents = [];
+    uniqueTitles = [];
+    payload.records.forEach(record => {
+        let name = String(record.title || '').trim();
+        let startDate = cleanGoogleDate(record.startDate);
+        if (!name || !startDate) return;
+        let endingStatus = String(record.isEnding || 'x');
+        let memo = record.memo === '기록된 메모가 없습니다.' || record.memo === '-' ? '' : (record.memo || '');
+        let isEndMark = endingStatus === 'o' || endingStatus.includes('엔딩') || endingStatus.includes('%');
+        let steamTotalText = String(record.steamTotal ?? '').trim();
+        let steamTotal = steamTotalText === '' ? null : Number(steamTotalText);
+        localEvents.push(createGameObj(name, startDate, cleanGoogleDate(record.endDate), record.platform || '-', Number(record.time || 0), endingStatus, memo, record.review || '', isEndMark, record.steamAppId || '', steamTotal));
+    });
+    refreshUI();
+    saveToLocalStorage();
+};
+
+function fetchAllYearTabs(webAppUrl) {
+    let oldScript = document.getElementById('game-records-jsonp-script');
+    if (oldScript) oldScript.remove();
+    let script = document.createElement('script');
+    script.id = 'game-records-jsonp-script';
+    script.src = `${webAppUrl}?action=gameRecords&callback=handleGameRecordsResponse`;
+    script.onerror = () => {
+        script.remove();
+        alert('시트를 불러오지 못했습니다. Apps Script 코드를 새 코드로 바꾼 뒤 새 배포했는지 확인해 주세요.');
+    };
+    document.body.appendChild(script);
+}
+
 function forceFetchSpreadsheetData() {
     let rawUrlInput = document.getElementById('spreadsheetUrlInput').value.trim();
     let sheetId = extractSpreadsheetId(rawUrlInput);
@@ -315,6 +390,12 @@ function forceFetchSpreadsheetData() {
     }
 
     localStorage.setItem('saved_game_sheet_url', rawUrlInput);
+
+    let webAppUrl = localStorage.getItem('user_local_web_app_url');
+    if (webAppUrl) {
+        fetchAllYearTabs(webAppUrl);
+        return;
+    }
 
     if (rawUrlInput.includes("2PACX-")) {
         let csvCleanUrl = rawUrlInput.split("/pubhtml")[0].split("?")[0] + "/pub?output=csv";
