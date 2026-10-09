@@ -30,6 +30,14 @@ function getSteamCredentials() {
     };
 }
 
+function toggleSteamHelp() {
+    const help = document.getElementById('steamHelp');
+    const button = document.getElementById('steamHelpButton');
+    const isVisible = help.classList.toggle('is-visible');
+    button.setAttribute('aria-expanded', String(isVisible));
+    button.innerText = isVisible ? '📕 Steam 도움말 닫기' : '❔ Steam 연결 도움말';
+}
+
 function extractSteamAppId(value) {
     const text = String(value || '').trim();
     const storeUrlMatch = text.match(/store\.steampowered\.com\/app\/(\d+)/i);

@@ -119,6 +119,23 @@ h1 {
     line-height: 1.6;
 }
 .spreadsheet-guide.is-visible { display: block; }
+.steam-help {
+    display: none;
+    margin: 0 14px 14px;
+    padding: 18px;
+    border: 1px solid #2563eb;
+    border-radius: 10px;
+    background: #1e293b;
+    color: #dbeafe;
+    line-height: 1.65;
+}
+.steam-help.is-visible { display: block; }
+.steam-help h2, .steam-help h3 { color: #93c5fd; margin: 0 0 8px; }
+.steam-help h3 { margin-top: 18px; font-size: 1em; }
+.steam-help p { margin: 8px 0; }
+.steam-help ol, .steam-help ul { margin: 8px 0; padding-left: 22px; }
+.steam-help a { color: #fcd34d; font-weight: bold; }
+.steam-help code { color: #fde68a; }
 .spreadsheet-guide h2, .spreadsheet-guide h3 { color: #c7d2fe; margin: 0 0 10px; }
 .spreadsheet-guide h3 { margin-top: 20px; font-size: 1em; }
 .spreadsheet-guide p { margin: 8px 0; }
@@ -562,7 +579,7 @@ h1 {
     .integration-row .url-input-label { width: auto !important; }
     .integration-row .sync-trigger-btn { width: 100%; }
     .sheet-tools-row .sync-trigger-btn { width: 100%; }
-    .spreadsheet-guide { padding: 14px; }
+    .spreadsheet-guide, .steam-help { padding: 14px; }
     .sheet-header-example { flex-direction: column; }
     .guide-code { max-height: 280px; font-size: 0.75em; }
     .form-container, .calculator-container { padding: 16px; }
