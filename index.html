@@ -13,7 +13,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.34</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.37</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -394,6 +394,7 @@ function output(data) {
         <div class="modal-content usage-guide-content">
             <button type="button" class="close-btn" id="closeUsageGuide" aria-label="사용법 안내 닫기">&times;</button>
             <div class="modal-title" id="usageGuideTitle">🐹 Game Effect 사용법</div>
+            <button type="button" class="usage-settings-button" id="openSettingsButton">⚙️ 설정 열기</button>
 
             <section class="usage-guide-section">
                 <h2>1. 기본 사용법</h2>
@@ -434,6 +435,35 @@ function output(data) {
             </section>
 
             <p class="usage-guide-contact">문의 사항은 Discord <strong>_yanggom</strong>으로 연락해 주세요.</p>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true">
+        <div class="modal-content settings-content">
+            <button type="button" class="close-btn" id="closeSettingsButton" aria-label="설정 닫기">&times;</button>
+            <div class="modal-title" id="settingsTitle">⚙️ 설정 (베타)</div>
+            <section class="settings-section">
+                <h2>플랫폼과 달력 색</h2>
+                <p>색을 바꾸면 이미 입력한 같은 플랫폼의 달력 기록도 함께 바뀝니다.</p>
+                <div id="platformSettingsList" class="platform-settings-list"></div>
+                <div class="platform-add-row"><input id="newPlatformName" type="text" placeholder="새 플랫폼 이름"><input id="newPlatformColor" type="color" value="#818cf8"><button type="button" id="addPlatformButton">추가</button></div>
+                <button type="button" class="platform-reset-button" id="resetPlatformColorsButton">기본 색으로 되돌리기</button>
+            </section>
+            <section class="settings-section">
+                <h2>이어지는 기록 표시</h2>
+                <select id="calendarBlockStyle"><option value="merged">하나로 이어서 보기</option><option value="separate">날짜별 블록으로 보기</option></select>
+                <p>하나의 기록에 여러 날짜가 있을 때 달력에서 이어 보거나 날짜별로 나눠 볼 수 있습니다.</p>
+            </section>
+            <section class="settings-section">
+                <h2>화면 모드</h2>
+                <select id="themeMode"><option value="dark">다크 모드</option><option value="light">라이트 모드</option></select>
+            </section>
+            <section class="settings-section">
+                <h2>최근 편집 기록</h2>
+                <div id="editHistoryList" class="edit-history-list">아직 편집 기록이 없습니다.</div>
+                <p><strong>되돌리기:</strong> 선택한 편집 직전의 전체 기록 상태로 돌아갑니다. 그 편집 이후에 한 추가·수정·삭제도 함께 사라질 수 있으니, 가장 최근 기록부터 되돌리는 것을 권장합니다. 최근 5개까지만 저장됩니다.</p>
+            </section>
+            <button type="button" class="settings-save-button" id="saveSettingsButton">설정 저장</button>
         </div>
     </div>
 
