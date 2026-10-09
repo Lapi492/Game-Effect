@@ -13,7 +13,7 @@
 </head>
 <body>
 
-    <h1>🎮 Game Effect <span class="app-version">v0.4.32</span></h1>
+    <h1>🎮 Game Effect <span class="app-version">v0.4.34</span></h1>
 
     <div class="app-layout">
     <main class="app-main">
@@ -415,7 +415,16 @@ function output(data) {
             </section>
 
             <section class="usage-guide-section">
-                <h2>2. 로컬 저장 확인</h2>
+                <h2>2. 연동과 파일 저장</h2>
+                <ul>
+                    <li><strong>연동 방법 안내 위치:</strong> 화면 위쪽의 <strong>구글 시트 연결하기</strong> 또는 <strong>Steam 연결하기</strong>를 펼칩니다. 구글 시트는 <strong>처음 설정하기</strong>, Steam은 <strong>Steam 연결 도움말</strong>에서 자세한 방법을 볼 수 있습니다.</li>
+                    <li><strong>CSV로 저장:</strong> 가볍고 한 장짜리 파일입니다. 다른 서비스에 기록을 옮길 때 편합니다.</li>
+                    <li><strong>Excel로 저장:</strong> 시작일 연도별 탭이 나뉜 <code>.xlsx</code> 파일입니다. Excel에서 계속 정리할 때 편합니다.</li>
+                </ul>
+            </section>
+
+            <section class="usage-guide-section">
+                <h2>3. 로컬 저장 확인</h2>
                 <ul>
                     <li>기록을 추가한 뒤 새로고침해도 기록이 남아 있으면 정상 저장된 것입니다.</li>
                     <li>저장된 기록은 현재 사용하는 이 브라우저에 보관됩니다. 다른 기기나 다른 브라우저에서는 자동으로 보이지 않습니다.</li>
@@ -424,7 +433,7 @@ function output(data) {
             </section>
 
             <section class="usage-guide-section">
-                <h2>3. 오류가 생겼을 때</h2>
+                <h2>4. 오류가 생겼을 때</h2>
                 <ul>
                     <li><strong>Steam 게임 목록을 가져오지 못함:</strong> Steam 게임 세부 정보를 공개로 바꾸고, API 키와 SteamID64를 확인합니다.</li>
                     <li><strong>구글 시트 연결 오류:</strong> 입력한 <code>/exec</code> 주소와 Apps Script의 새 배포 여부를 확인합니다.</li>

@@ -116,7 +116,7 @@ function downloadRecordsAsXlsx() {
     if (recordsByYear.size === 0) recordsByYear.set('기록 없음', []);
 
     let workbook = XLSX.utils.book_new();
-    [...recordsByYear.keys()].sort().forEach(year => {
+    [...recordsByYear.keys()].sort((left, right) => right.localeCompare(left)).forEach(year => {
         let records = recordsByYear.get(year).sort((left, right) => String(left.startDate || '').localeCompare(String(right.startDate || '')));
         let worksheet = XLSX.utils.aoa_to_sheet([SPREADSHEET_HEADERS, ...records.map(recordToSpreadsheetRow)]);
         worksheet['!cols'] = [
