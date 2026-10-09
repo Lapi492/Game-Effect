@@ -742,6 +742,20 @@ function deleteCurrentGame() {
 
 function closeGameModal() { document.getElementById('gameModal').style.display = "none"; if (currentSelectedGameTitle) { refreshUI(); } }
 
+function openUsageGuide() {
+    const guide = document.getElementById('usageGuideModal');
+    guide.style.display = 'flex';
+    guide.setAttribute('aria-hidden', 'false');
+    document.getElementById('closeUsageGuide').focus();
+}
+
+function closeUsageGuide() {
+    const guide = document.getElementById('usageGuideModal');
+    guide.style.display = 'none';
+    guide.setAttribute('aria-hidden', 'true');
+    document.getElementById('usageGuideButton').focus();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     var modal = document.getElementById('gameModal');
@@ -804,9 +818,16 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('searchSteamAppIdInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('searchDateInput').addEventListener('input', executeLiveGameSearch);
     document.getElementById('gameForm').addEventListener('submit', handleGameSubmit);
+    document.getElementById('usageGuideButton').addEventListener('click', openUsageGuide);
+    document.getElementById('closeUsageGuide').addEventListener('click', closeUsageGuide);
 
     window.addEventListener('click', (e) => { 
         if (e.target == modal) { closeGameModal(); }
+        if (e.target === document.getElementById('usageGuideModal')) { closeUsageGuide(); }
         if (e.target.id !== 'gameName') { document.getElementById('autocompleteList').style.display = 'none'; }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('usageGuideModal').style.display === 'flex') closeUsageGuide();
     });
 });

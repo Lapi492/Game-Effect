@@ -78,11 +78,6 @@ function createCsvText(records) {
 }
 
 function downloadRecordsAsCsv() {
-    if (localEvents.length === 0) {
-        alert("다운로드할 기록이 없습니다.");
-        return;
-    }
-
     let records = localEvents.map(event => ({ ...event.extendedProps }));
     let csvText = createCsvText(records);
     let blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
