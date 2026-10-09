@@ -7,6 +7,38 @@ let currentSelectedEventId = null;
 let currentSelectedGameTitle = ""; 
 let calendar = null;
 let shortPlaytimeCollapseScheduled = false;
+const DEFAULT_PLATFORM_SETTINGS = [
+    ['steam', '#1044a0'], ['xbox gamepass', '#107c10'], ['Switch', '#ffb0b0'], ['Switch2', '#e60012'], ['ps4', '#b0b0ff'], ['ps5', '#4a148c'], ['stove', '#ffa259'], ['epic', '#00a3ff'], ['mobile', '#2d2d2d'], ['DLC', '#888888'], ['기타', '#b0bec5']
+].map(([name, color]) => ({ name, color }));
+
+function getBetaSettings() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('game_effect_beta_settings') || '{}');
+        return { platforms: Array.isArray(saved.platforms) ? saved.platforms : DEFAULT_PLATFORM_SETTINGS, calendarBlockStyle: saved.calendarBlockStyle || 'merged', themeMode: saved.themeMode || 'dark' };
+    } catch { return { platforms: DEFAULT_PLATFORM_SETTINGS, calendarBlockStyle: 'merged', themeMode: 'dark' }; }
+}
+function saveBetaSettings(settings) { localStorage.setItem('game_effect_beta_settings', JSON.stringify(settings)); }
+function recordEditHistory(action, title, snapshot = localEvents, details = []) {
+    let history = JSON.parse(localStorage.getItem('game_effect_edit_history') || '[]');
+    history.unshift({ action, title, at: new Date().toLocaleString('ko-KR'), snapshot: JSON.stringify(snapshot), details });
+    localStorage.setItem('game_effect_edit_history', JSON.stringify(history.slice(0, 5)));
+}
+
+function describeRecordChanges(before, after) {
+    const display = (value, fallback = '없음') => String(value || fallback);
+    const changes = [];
+    const fields = [
+        ['title', '게임 이름'], ['startDate', '시작 날짜'], ['endDate', '끝낸 날짜'], ['platform', '플랫폼'], ['time', '플레이 시간'], ['isEnding', '엔딩 상태']
+    ];
+    fields.forEach(([key, label]) => {
+        if (String(before[key] ?? '') !== String(after[key] ?? '')) {
+            const suffix = key === 'time' ? '시간' : '';
+            changes.push(`${label}: ${display(before[key])}${suffix} → ${display(after[key])}${suffix}`);
+        }
+    });
+    if (String(before.memo || '') !== String(after.memo || '')) changes.push('메모 내용 변경');
+    return changes.length ? changes : ['변경한 내용 없음'];
+}
 
 function saveToLocalStorage() {
     localStorage.setItem('cached_game_events', JSON.stringify(localEvents));
@@ -47,18 +79,14 @@ function getSmartGameColor(title) {
 
 function determineEventColor(gameObj) {
     let p = gameObj.platform ? gameObj.platform.trim().toLowerCase() : '';
-    if (p === 'steam') return '#1044a0';         
-    if (p === 'xbox gamepass') return '#107c10'; 
-    if (p === 'switch') return '#ffb0b0';        
-    if (p === 'switch2') return '#e60012';       
-    if (p === 'ps4') return '#b0b0ff';           
-    if (p === 'ps5') return '#4a148c';           
-    if (p === 'stove') return '#ffa259';         
-    if (p === 'epic') return '#00a3ff';          
-    if (p === 'mobile') return '#2d2d2d';        
-    if (p === 'dlc') return '#888888';           
-    if (p === '기타') return '#b0bec5';          
+    const setting = getBetaSettings().platforms.find(item => String(item.name).trim().toLowerCase() === p);
+    if (setting?.color) return setting.color;
     return getSmartGameColor(gameObj.title);     
+}
+
+function renderPlatformOptions(selectId, selected = '') {
+    const select = document.getElementById(selectId); if (!select) return;
+    select.innerHTML = getBetaSettings().platforms.map(item => `<option value="${item.name}" ${item.name === selected ? 'selected' : ''}>${item.name}</option>`).join('');
 }
 
 function addDays(dateStr, days) {
@@ -116,7 +144,11 @@ function buildDailyCalendarEvents() {
                     }
                 });
             } else {
-                calendarEvents.push({ ...event, extendedProps: { ...game, originalEventId: event.id } });
+                if (getBetaSettings().calendarBlockStyle === 'separate' && dates.length > 1) {
+                    dates.forEach(date => calendarEvents.push({ ...event, id: `${event.id}_${date}`, start: date, end: addDays(date, 1), extendedProps: { ...game, originalEventId: event.id } }));
+                } else {
+                    calendarEvents.push({ ...event, extendedProps: { ...game, originalEventId: event.id } });
+                }
             }
         });
     });
@@ -320,6 +352,7 @@ function handleGameSubmit(event) {
     }
 
     let newGame = createGameObj(name, startDate, calculatedEnd, platform, inputTime, endingStatusValue, '', '', checkEnding, platform === 'steam' ? getSteamAppIdForTitle(name) : '');
+    recordEditHistory('기록 추가', name, localEvents, [`시작 날짜: ${startDate}`, `플랫폼: ${platform}`, `플레이 시간: ${inputTime}시간`]);
     localEvents.push(newGame);
 
     refreshUI();
@@ -677,20 +710,8 @@ function enableEditMode() {
             <option value="o" ${gameObj.isEnding === 'o'?'selected':''}>엔딩 완료 (o)</option>
         </select>`;
         
-    document.getElementById('modalGamePlatformZone').innerHTML = `
-        <select id="editPlatform" class="edit-input">
-            <option value="steam" ${gameObj.platform === 'steam'?'selected':''}>steam</option>
-            <option value="xbox gamepass" ${gameObj.platform === 'xbox gamepass'?'selected':''}>xbox gamepass</option>
-            <option value="Switch" ${gameObj.platform === 'Switch'?'selected':''}>Switch</option>
-            <option value="Switch2" ${gameObj.platform === 'Switch2'?'selected':''}>Switch2</option>
-            <option value="ps4" ${gameObj.platform === 'ps4'?'selected':''}>ps4</option>
-            <option value="ps5" ${gameObj.platform === 'ps5'?'selected':''}>ps5</option>
-            <option value="stove" ${gameObj.platform === 'stove'?'selected':''}>stove</option>
-            <option value="epic" ${gameObj.platform === 'epic'?'selected':''}>epic</option>
-            <option value="mobile" ${gameObj.platform === 'mobile'?'selected':''}>mobile</option>
-            <option value="DLC" ${gameObj.platform === 'DLC'?'selected':''}>DLC</option>
-            <option value="기타" ${gameObj.platform === '기타'?'selected':''}>기타</option>
-        </select>`;
+    document.getElementById('modalGamePlatformZone').innerHTML = '<select id="editPlatform" class="edit-input"></select>';
+    renderPlatformOptions('editPlatform', gameObj.platform);
 
     let rawTextForEdit = gameObj.memo || '';
     if (rawTextForEdit.startsWith('[{') && rawTextForEdit.endsWith('}]')) { try { let arr = JSON.parse(rawTextForEdit); rawTextForEdit = arr.map(m => `[${m.date}] ${m.text}`).join('\n'); } catch(e){} }
@@ -712,6 +733,13 @@ function saveEditedData() {
         return;
     }
 
+    const beforeEdit = { ...target.extendedProps };
+    const editDetails = describeRecordChanges(beforeEdit, {
+        title: newTitle, time: newTime, startDate: newStart, endDate: newEnd || '',
+        platform: document.getElementById('editPlatform').value, isEnding: document.getElementById('editEnding').value,
+        memo: document.getElementById('editMemo').value.trim()
+    });
+    recordEditHistory('기록 수정', target.title, localEvents, editDetails);
     target.title = newTitle; target.start = newStart;
     let calcEnd = new Date(newEnd ? newEnd : newStart); calcEnd.setDate(calcEnd.getDate() + 1);
     target.end = calcEnd.toISOString().split('T')[0];
@@ -726,6 +754,7 @@ function saveEditedData() {
         if (match) recompiledArr.push({ date: match[1], text: match[2] }); else recompiledArr.push({ date: newStart, text: line });
     });
     target.extendedProps.memo = JSON.stringify(recompiledArr);
+    target.backgroundColor = determineEventColor(target.extendedProps);
     
     saveToLocalStorage();
     alert("저장되었습니다."); 
@@ -734,6 +763,8 @@ function saveEditedData() {
 
 function deleteCurrentGame() { 
     if (confirm("삭제하시겠습니까?")) { 
+        const deleted = localEvents.find(e => e.id === currentSelectedEventId);
+        recordEditHistory('기록 삭제', deleted?.title || '이름 없음', localEvents, deleted ? [`시작 날짜: ${deleted.extendedProps.startDate}`, `플랫폼: ${deleted.extendedProps.platform}`] : []);
         localEvents = localEvents.filter(e => e.id !== currentSelectedEventId); 
         saveToLocalStorage();
         closeGameModal(); 
@@ -756,9 +787,68 @@ function closeUsageGuide() {
     document.getElementById('usageGuideButton').focus();
 }
 
+function renderBetaSettings() {
+    const settings = getBetaSettings();
+    document.getElementById('calendarBlockStyle').value = settings.calendarBlockStyle;
+    document.getElementById('themeMode').value = settings.themeMode;
+    document.getElementById('platformSettingsList').innerHTML = settings.platforms.map((item, index) => `<div class="platform-setting-row"><span>${item.name}</span><input type="color" value="${item.color}" data-platform-index="${index}"><button type="button" data-remove-platform="${index}">제거</button></div>`).join('');
+    document.getElementById('platformSettingsList').querySelectorAll('[data-remove-platform]').forEach(button => button.addEventListener('click', () => {
+        settings.platforms.splice(Number(button.dataset.removePlatform), 1); saveBetaSettings(settings); renderBetaSettings();
+    }));
+    const history = JSON.parse(localStorage.getItem('game_effect_edit_history') || '[]');
+    document.getElementById('editHistoryList').innerHTML = history.length ? history.map((item, index) => `<div class="edit-history-item"><span><strong>${item.at} · ${item.action}: ${item.title}</strong>${(item.details || []).map(detail => `<small>${detail}</small>`).join('')}</span>${item.snapshot ? `<button type="button" data-undo-history="${index}">되돌리기</button>` : ''}</div>`).join('') : '아직 편집 기록이 없습니다.';
+    document.getElementById('editHistoryList').querySelectorAll('[data-undo-history]').forEach(button => button.addEventListener('click', () => undoBetaHistory(Number(button.dataset.undoHistory))));
+}
+
+function undoBetaHistory(index) {
+    const history = JSON.parse(localStorage.getItem('game_effect_edit_history') || '[]');
+    const target = history[index];
+    if (!target?.snapshot) return alert('이전 상태 정보가 없어 되돌릴 수 없습니다.');
+    const detailText = (target.details || []).join('\n');
+    if (!confirm(`${target.action} 기록을 되돌릴까요?${detailText ? `\n\n되돌리는 내용\n${detailText}` : ''}`)) return;
+    try {
+        localEvents = JSON.parse(target.snapshot);
+        uniqueTitles = [];
+        history.splice(index, 1);
+        localStorage.setItem('game_effect_edit_history', JSON.stringify(history));
+        saveToLocalStorage();
+        refreshUI();
+        renderBetaSettings();
+    } catch {
+        alert('되돌리지 못했습니다.');
+    }
+}
+
+function applyBetaTheme() { document.body.classList.toggle('light-theme', getBetaSettings().themeMode === 'light'); }
+function openSettings() { renderBetaSettings(); document.getElementById('settingsModal').style.display = 'flex'; document.getElementById('settingsModal').setAttribute('aria-hidden', 'false'); }
+function closeSettings() { document.getElementById('settingsModal').style.display = 'none'; document.getElementById('settingsModal').setAttribute('aria-hidden', 'true'); }
+function saveSettingsFromModal() {
+    const settings = getBetaSettings();
+    settings.calendarBlockStyle = document.getElementById('calendarBlockStyle').value;
+    settings.themeMode = document.getElementById('themeMode').value;
+    document.querySelectorAll('[data-platform-index]').forEach(input => { settings.platforms[Number(input.dataset.platformIndex)].color = input.value; });
+    saveBetaSettings(settings);
+    localEvents.forEach(event => { event.backgroundColor = determineEventColor(event.extendedProps); });
+    saveToLocalStorage(); applyBetaTheme(); renderPlatformOptions('gamePlatform'); refreshUI();
+}
+
+function resetPlatformColorsToDefaults() {
+    if (!confirm('기본 플랫폼 색을 처음 색으로 되돌릴까요? 새로 추가한 플랫폼은 그대로 유지됩니다.')) return;
+    const settings = getBetaSettings();
+    const defaultColors = new Map(DEFAULT_PLATFORM_SETTINGS.map(item => [item.name.toLowerCase(), item.color]));
+    settings.platforms.forEach(item => {
+        const defaultColor = defaultColors.get(String(item.name).toLowerCase());
+        if (defaultColor) item.color = defaultColor;
+    });
+    saveBetaSettings(settings);
+    renderBetaSettings();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     var modal = document.getElementById('gameModal');
+    renderPlatformOptions('gamePlatform');
+    applyBetaTheme();
     
     let savedUrl = localStorage.getItem('saved_game_sheet_url');
     if (savedUrl) { document.getElementById('spreadsheetUrlInput').value = savedUrl; }
@@ -820,10 +910,21 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('gameForm').addEventListener('submit', handleGameSubmit);
     document.getElementById('usageGuideButton').addEventListener('click', openUsageGuide);
     document.getElementById('closeUsageGuide').addEventListener('click', closeUsageGuide);
+    document.getElementById('openSettingsButton').addEventListener('click', openSettings);
+    document.getElementById('closeSettingsButton').addEventListener('click', closeSettings);
+    document.getElementById('saveSettingsButton').addEventListener('click', saveSettingsFromModal);
+    document.getElementById('addPlatformButton').addEventListener('click', () => {
+        const name = document.getElementById('newPlatformName').value.trim(); if (!name) return;
+        const settings = getBetaSettings();
+        if (settings.platforms.some(item => item.name.toLowerCase() === name.toLowerCase())) return alert('같은 플랫폼이 이미 있습니다.');
+        settings.platforms.push({ name, color: document.getElementById('newPlatformColor').value }); saveBetaSettings(settings); document.getElementById('newPlatformName').value = ''; renderBetaSettings();
+    });
+    document.getElementById('resetPlatformColorsButton').addEventListener('click', resetPlatformColorsToDefaults);
 
     window.addEventListener('click', (e) => { 
         if (e.target == modal) { closeGameModal(); }
         if (e.target === document.getElementById('usageGuideModal')) { closeUsageGuide(); }
+        if (e.target === document.getElementById('settingsModal')) { closeSettings(); }
         if (e.target.id !== 'gameName') { document.getElementById('autocompleteList').style.display = 'none'; }
     });
 

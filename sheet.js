@@ -432,3 +432,4 @@ function sendDataToGoogleSheet(gameData) {
     })
     .catch(err => console.error("네트워크 동기화 오류:", err));
 }
+
